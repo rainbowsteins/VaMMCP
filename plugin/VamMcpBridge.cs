@@ -30,6 +30,8 @@ namespace MVRPlugin {
 				statusPath = bridgeDir + "/status.json";
 				previewPath = bridgeDir + "/preview.png";
 
+				AdoptStaleCommand();
+
 				enabledStore = new JSONStorableBool("enabled", true, OnEnabledChanged);
 				RegisterBool(enabledStore);
 				CreateToggle(enabledStore);
@@ -72,6 +74,40 @@ namespace MVRPlugin {
 			}
 			catch (Exception e) {
 				SuperController.LogError("VamMcpBridge.Update: " + e);
+			}
+		}
+
+		// The MCP server never deletes command.json, so the last command of the
+		// previous session is still on disk when we load. lastCommandId starts
+		// empty, so the first PollCommand would replay it. Claim that id without
+		// running it: a genuinely new command still has a different id.
+		protected void AdoptStaleCommand() {
+			try {
+				if (!FileManagerSecure.FileExists(commandPath)) {
+					return;
+				}
+				string text = SuperController.singleton.ReadFileIntoString(commandPath);
+				if (text == null || text == "") {
+					return;
+				}
+				JSONNode parsed = JSON.Parse(text);
+				if (parsed == null) {
+					return;
+				}
+				JSONClass cmd = parsed.AsObject;
+				if (cmd == null || cmd["id"] == null) {
+					return;
+				}
+				string id = cmd["id"].Value;
+				if (id == null || id == "") {
+					return;
+				}
+				lastCommandId = id;
+				SuperController.LogMessage("VamMcpBridge: ignoring stale command " + id);
+			}
+			catch (Exception e) {
+				// Never let a bad leftover file stop the plugin from loading.
+				SuperController.LogError("VamMcpBridge.AdoptStaleCommand: " + e);
 			}
 		}
 
@@ -835,7 +871,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.6.0";
+			data["version"] = "0.6.1";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

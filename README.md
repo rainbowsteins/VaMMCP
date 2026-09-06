@@ -14,7 +14,7 @@ Current pieces:
 
 | Piece | Version |
 | --- | --- |
-| Session plugin `VamMcpBridge` | 0.6.0 |
+| Session plugin `VamMcpBridge` | 0.6.1 |
 | Python package `vam-mcp` | 0.3.0 |
 
 ## How it works
@@ -256,6 +256,7 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - `setup_couple` paired-pose paths currently assume **vamX 1.52**. A different package version will fail those `load_pose` calls unless that exact package is still installed.
 - `set_expression` only drives morphs that are already on the Person. Missing morphs show up in `missing`; the face will not change.
 - `lock_head` holds head/neck controllers and sets eyes to Target. A glance / look-at plugin on the Person can still turn the head — disable that plugin or lock again after it loads.
+- The MCP server leaves the last `command.json` on disk. Plugin **0.6.1+** claims that id at load and does not re-run it; an older plugin replays that one command every time it loads.
 - `move_person` moves the **root control** only. If the Person's limb controllers are pinned by a pose, the body follows the root but a pose anchored to furniture can end up floating; re-apply the pose after a large move.
 - `add_person` starts a VAM coroutine and returns immediately. `setup_couple` waits about two seconds; a slow machine may need a retry.
 - `list_*` / `load_*` never create Hub content. If the look is not on disk, the answer is "not found".

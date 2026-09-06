@@ -8,7 +8,7 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 **本项目不能生成角色或衣服。** 它只能搜索并加载硬盘上已有的文件，也不会自动下载 Hub 内容。
 
-当前版本：Session 插件 `VamMcpBridge` 0.6.0，Python 包 `vam-mcp` 0.3.0。
+当前版本：Session 插件 `VamMcpBridge` 0.6.1，Python 包 `vam-mcp` 0.3.0。
 
 ## 工作原理
 
@@ -191,6 +191,7 @@ VAM_ROOT = 'VAM_ROOT'
 - MCP 服务可以控制当前运行的 VAM 会话，并加载 `VAM_ROOT` 下可见的场景和预设。
 - 不要将该 MCP 服务交给不可信的 Agent，也不要将它暴露到网络。
 - 新增 `.var` 或 Look 文件后，必须重启 MCP 进程，目录缓存才会更新。
+- MCP 服务不会删除最后一条 `command.json`。插件 0.6.1+ 会在加载时认领该 id 而不执行；更早的版本每次加载都会把这条陈旧命令重放一遍。
 - `move_person` 只移动人物的根控制器。姿势如果绑定了家具，大幅移动后可能出现悬空，需要重新应用姿势。
 
 仓库代码采用 [MIT License](../LICENSE)。Virt-A-Mate 仍受其自身 EULA 约束。
