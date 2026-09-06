@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *.local.json
+# Machine-specific MCP client config (templates live in examples/)
+opencode.json
 
 # Python
 __pycache__/

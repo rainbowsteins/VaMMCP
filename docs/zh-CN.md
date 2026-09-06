@@ -8,7 +8,7 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 **本项目不能生成角色或衣服。** 它只能搜索并加载硬盘上已有的文件，也不会自动下载 Hub 内容。
 
-当前版本：Session 插件 `VamMcpBridge` 0.5.1，Python 包 `vam-mcp` 0.2.0。
+当前版本：Session 插件 `VamMcpBridge` 0.6.0，Python 包 `vam-mcp` 0.3.0。
 
 ## 工作原理
 
@@ -151,6 +151,7 @@ VAM_ROOT = 'VAM_ROOT'
 - “把这两个人加入当前房间，并应用坐姿。”
 - “把她的表情改成微笑。”
 - “她的头在跟着镜头转，把头锁住。”
+- “把他往左移半米，转过来面向她。”
 
 ## 工具概览
 
@@ -166,6 +167,7 @@ VAM_ROOT = 'VAM_ROOT'
 | `list_poses` / `load_pose` | 搜索并应用姿势 |
 | `list_expressions` / `set_expression` | 查看并设置面部表情 |
 | `lock_head` | 防止头部继续跟随监视器镜头 |
+| `get_position` / `move_person` | 读取并修改人物的世界坐标与朝向 |
 | `setup_couple` | 一次设置两个人物外观和成对姿势 |
 
 ## 常见问题
@@ -181,6 +183,7 @@ VAM_ROOT = 'VAM_ROOT'
 | 包路径提示 `VamMcpBridge.cs does not exist` | 运行 `.\scripts\install-dev.ps1 -VamRoot "VAM_ROOT"`，然后选择 `Custom/Scripts/VamMcp/Bridge/VamMcpBridge.cs` |
 | 新增 Look 或 `.var` 后搜索不到 | 重启 MCP 服务，让目录缓存重新扫描 |
 | `setup_couple` 姿势失败 | 使用 `list_poses` / `load_pose`，或确认所需成对姿势包已安装 |
+| 提示 `unknown op: move_person` | 插件版本过旧，更新本地 `.cs` 后在 Session Plugins 中 Reload（需要 0.6.0+）|
 
 ## 安全和限制
 
@@ -188,5 +191,6 @@ VAM_ROOT = 'VAM_ROOT'
 - MCP 服务可以控制当前运行的 VAM 会话，并加载 `VAM_ROOT` 下可见的场景和预设。
 - 不要将该 MCP 服务交给不可信的 Agent，也不要将它暴露到网络。
 - 新增 `.var` 或 Look 文件后，必须重启 MCP 进程，目录缓存才会更新。
+- `move_person` 只移动人物的根控制器。姿势如果绑定了家具，大幅移动后可能出现悬空，需要重新应用姿势。
 
 仓库代码采用 [MIT License](../LICENSE)。Virt-A-Mate 仍受其自身 EULA 约束。

@@ -313,6 +313,18 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "move_person") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = MovePerson(person, cmd);
+				return result;
+			}
+
+			if (op == "get_position") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = PersonPosition(person);
+				return result;
+			}
+
 			throw new Exception("unknown op: " + op);
 		}
 
@@ -469,6 +481,65 @@ namespace MVRPlugin {
 				list.Add(row);
 			}
 			return list;
+		}
+
+		protected JSONClass PersonPosition(Atom person) {
+			FreeControllerV3 fc = RootControl(person);
+			Vector3 pos = fc.transform.position;
+			Vector3 rot = fc.transform.eulerAngles;
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["x"] = pos.x.ToString();
+			data["y"] = pos.y.ToString();
+			data["z"] = pos.z.ToString();
+			data["rx"] = rot.x.ToString();
+			data["ry"] = rot.y.ToString();
+			data["rz"] = rot.z.ToString();
+			return data;
+		}
+
+		protected JSONClass MovePerson(Atom person, JSONClass cmd) {
+			FreeControllerV3 fc = RootControl(person);
+			Vector3 pos = fc.transform.position;
+			Vector3 rot = fc.transform.eulerAngles;
+			if (cmd["x"] != null) {
+				pos.x = cmd["x"].AsFloat;
+			}
+			if (cmd["y"] != null) {
+				pos.y = cmd["y"].AsFloat;
+			}
+			if (cmd["z"] != null) {
+				pos.z = cmd["z"].AsFloat;
+			}
+			if (cmd["dx"] != null) {
+				pos.x += cmd["dx"].AsFloat;
+			}
+			if (cmd["dy"] != null) {
+				pos.y += cmd["dy"].AsFloat;
+			}
+			if (cmd["dz"] != null) {
+				pos.z += cmd["dz"].AsFloat;
+			}
+			if (cmd["rx"] != null) {
+				rot.x = cmd["rx"].AsFloat;
+			}
+			if (cmd["ry"] != null) {
+				rot.y = cmd["ry"].AsFloat;
+			}
+			if (cmd["rz"] != null) {
+				rot.z = cmd["rz"].AsFloat;
+			}
+			fc.transform.position = pos;
+			fc.transform.rotation = Quaternion.Euler(rot);
+			return PersonPosition(person);
+		}
+
+		protected FreeControllerV3 RootControl(Atom person) {
+			FreeControllerV3 fc = person.GetStorableByID("control") as FreeControllerV3;
+			if (fc == null) {
+				throw new Exception("no root control on " + person.uid);
+			}
+			return fc;
 		}
 
 		protected GenerateDAZMorphsControlUI MorphUI(Atom person) {
@@ -764,7 +835,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.5.1";
+			data["version"] = "0.6.0";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

@@ -14,8 +14,8 @@ Current pieces:
 
 | Piece | Version |
 | --- | --- |
-| Session plugin `VamMcpBridge` | 0.5.1 |
-| Python package `vam-mcp` | 0.2.0 |
+| Session plugin `VamMcpBridge` | 0.6.0 |
+| Python package `vam-mcp` | 0.3.0 |
 
 ## How it works
 
@@ -225,10 +225,11 @@ Examples:
 - "Add these two people to the current room and sit them down."
 - "Set her expression to smile."
 - "Her head is tracking the camera — lock the head."
+- "Move him half a metre to the left and turn him to face her."
 
 After any scene / look / pose change the server writes a screenshot to `Saves/PluginData/vam-mcp/preview.png`. Ask the agent to `capture_view` if you want to check the result.
 
-Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes use `set_expression` (plugin **0.5.0+**). Head tracking uses `lock_head` (plugin **0.5.1+**). After you update `VamMcpBridge.cs`, **Reload** the Session Plugin.
+Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes use `set_expression` (plugin **0.5.0+**). Head tracking uses `lock_head` (plugin **0.5.1+**). Placement uses `get_position` then `move_person` (plugin **0.6.0+**). After you update `VamMcpBridge.cs`, **Reload** the Session Plugin.
 
 ## Tools
 
@@ -244,6 +245,7 @@ Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes us
 | `list_poses` / `load_pose` | Search and apply a pose (`person=all` poses everyone) |
 | `list_expressions` / `set_expression` | List aliases / live face morphs, then set a face (`smile`, `neutral`, `surprise`, …) |
 | `lock_head` | Hold the head still so it does not follow the monitor camera |
+| `get_position` / `move_person` | Read a Person's world position and rotation, then move or turn them |
 | `setup_couple` | One-shot: resolve two looks, enable or add people, apply a paired pose |
 
 Do not ask the user to click **On** or delete atoms by hand — `set_person_on` / `remove_person` do that.
@@ -254,6 +256,7 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - `setup_couple` paired-pose paths currently assume **vamX 1.52**. A different package version will fail those `load_pose` calls unless that exact package is still installed.
 - `set_expression` only drives morphs that are already on the Person. Missing morphs show up in `missing`; the face will not change.
 - `lock_head` holds head/neck controllers and sets eyes to Target. A glance / look-at plugin on the Person can still turn the head — disable that plugin or lock again after it loads.
+- `move_person` moves the **root control** only. If the Person's limb controllers are pinned by a pose, the body follows the root but a pose anchored to furniture can end up floating; re-apply the pose after a large move.
 - `add_person` starts a VAM coroutine and returns immediately. `setup_couple` waits about two seconds; a slow machine may need a retry.
 - `list_*` / `load_*` never create Hub content. If the look is not on disk, the answer is "not found".
 
@@ -267,7 +270,7 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 | Plugin vanishes after restart | Session Plugin Presets -> **Set Current As User Defaults** |
 | `VaM.exe not found` | `VAM_ROOT` is not the folder that contains `VaM.exe` |
 | Packaged path says `VamMcpBridge.cs does not exist` | Run `.\scripts\install-dev.ps1 -VamRoot "VAM_ROOT"`, then add `Custom/Scripts/VamMcp/Bridge/VamMcpBridge.cs` |
-| `unknown op: set_expression` / `lock_head` | Old plugin. Update the loose `.cs` file and **Reload** the Session Plugin (need 0.5.0+ / 0.5.1+) |
+| `unknown op: set_expression` / `lock_head` / `move_person` | Old plugin. Update the loose `.cs` file and **Reload** the Session Plugin (need 0.5.0+ / 0.5.1+ / 0.6.0+) |
 | New looks do not appear in `list_looks` | Restart the MCP server so it rescans `AddonPackages` |
 | `setup_couple` pose fails | Use `list_poses` / `load_pose`, or install the paired-pose package the server expects |
 | Ping script says no response | Same as timeout: VAM running, Session Plugin loaded, `enabled` on |

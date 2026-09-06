@@ -229,6 +229,50 @@ def lock_head(person: str = "", locked: bool = True) -> str:
 
 
 @mcp.tool()
+def get_position(person: str = "") -> str:
+    """Get the current world position (x,y,z) and rotation (rx,ry,rz) of a Person's root control. person is the atom uid from list_persons; empty uses the first Person."""
+    args: dict[str, Any] = {}
+    if person:
+        args["person"] = person
+    result = bridge.call("get_position", timeout=10.0, **args)
+    return _dump(result.get("data") or result)
+
+
+@mcp.tool()
+def move_person(
+    person: str = "",
+    x: float | None = None,
+    y: float | None = None,
+    z: float | None = None,
+    dx: float | None = None,
+    dy: float | None = None,
+    dz: float | None = None,
+    rx: float | None = None,
+    ry: float | None = None,
+    rz: float | None = None,
+) -> str:
+    """Move a Person's root control. x/y/z set absolute world position, dx/dy/dz add an offset, rx/ry/rz set rotation in degrees. Call get_position first to read the current values. person is the atom uid from list_persons; empty uses the first Person."""
+    args: dict[str, Any] = {}
+    if person:
+        args["person"] = person
+    for key, val in {
+        "x": x,
+        "y": y,
+        "z": z,
+        "dx": dx,
+        "dy": dy,
+        "dz": dz,
+        "rx": rx,
+        "ry": ry,
+        "rz": rz,
+    }.items():
+        if val is not None:
+            args[key] = val
+    result = bridge.call("move_person", timeout=10.0, **args)
+    return _dump(_capture_after(result.get("data") or result))
+
+
+@mcp.tool()
 def setup_couple(female: str, male: str = "", pose: str = "doggy") -> str:
     """One-shot: put a female and male look in the current scene and apply a paired pose.
 

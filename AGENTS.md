@@ -74,6 +74,9 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - After any scene, look, clothing, pose, or expression change, call `capture_view` and inspect `Saves/PluginData/vam-mcp/preview.png` (the tool returns `previewAbsolute`).
 - Face only: `set_expression` (alias or a morph name from `list_expressions`). Neutral aliases include `smile`, `neutral`, `surprise`, `sad`, `angry`.
 - Head tracking the monitor camera: `lock_head`.
+- Someone standing in the wrong place or facing the wrong way: call `get_position` first, then
+  `move_person`. `x`/`y`/`z` are absolute world coordinates, `dx`/`dy`/`dz` are offsets, and
+  `rx`/`ry`/`rz` are degrees. Do not guess coordinates you have not read.
 - Two people into the current room with a paired pose: `setup_couple(female, male, pose)`. `female` / `male` are look names or exact `.vap` paths. `pose` is whatever the user asked for (or a name from `list_poses`). If the paired pose package is missing, fall back to `list_poses` + `load_pose` per person.
 - Hidden people: `set_person_on`. Extra person: `add_person`, then `load_look` / `load_pose` on the returned uid. Remove: `remove_person`.
 - `load_look` rejects `.json` scene files — those go to `load_scene` (use `merge=true` to add into the current scene).
@@ -94,6 +97,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `list_poses` / `load_pose` | Pose `.vap` |
 | `list_expressions` / `set_expression` | Face aliases and live morphs |
 | `lock_head` | Stop the head following the camera |
+| `get_position` / `move_person` | Read or set a Person's world position and rotation |
 | `setup_couple` | Two looks + paired pose in the current scene |
 
 ## If MCP is not connected
