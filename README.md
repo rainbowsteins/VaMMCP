@@ -14,8 +14,8 @@ Current pieces:
 
 | Piece | Version |
 | --- | --- |
-| Session plugin `VamMcpBridge` | 0.6.1 |
-| Python package `vam-mcp` | 0.3.0 |
+| Session plugin `VamMcpBridge` | 0.6.4 |
+| Python package `vam-mcp` | 0.4.0 |
 
 ## How it works
 
@@ -227,7 +227,7 @@ Examples:
 - "Her head is tracking the camera — lock the head."
 - "Move him half a metre to the left and turn him to face her."
 
-After any scene / look / pose change the server writes a screenshot to `Saves/PluginData/vam-mcp/preview.png`. Ask the agent to `capture_view` if you want to check the result.
+After any scene / look / pose change the server writes a screenshot to `Saves/PluginData/vam-mcp/preview.png`. Ask the agent to `capture_view` if you want to check the result. The shot is the real back buffer at your window's resolution, so it looks exactly like your screen, VAM UI and all.
 
 Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes use `set_expression` (plugin **0.5.0+**). Head tracking uses `lock_head` (plugin **0.5.1+**). Placement uses `get_position` then `move_person` (plugin **0.6.0+**). After you update `VamMcpBridge.cs`, **Reload** the Session Plugin.
 
@@ -239,7 +239,7 @@ Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes us
 | `list_scenes` / `load_scene` | Search and load a scene (`merge=true` adds into the current scene) |
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, or show/hide a Person |
-| `capture_view` | Save the monitor camera to `Saves/PluginData/vam-mcp/preview.png` |
+| `capture_view` | Save the VAM window to `Saves/PluginData/vam-mcp/preview.png` |
 | `list_looks` / `load_look` | Search and apply an appearance preset |
 | `list_clothing` / `load_clothing` | Search and apply a clothing preset |
 | `list_poses` / `load_pose` | Search and apply a pose (`person=all` poses everyone) |
@@ -247,6 +247,7 @@ Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes us
 | `lock_head` | Hold the head still so it does not follow the monitor camera |
 | `get_position` / `move_person` | Read a Person's world position and rotation, then move or turn them |
 | `setup_couple` | One-shot: resolve two looks, enable or add people, apply a paired pose |
+| `debug_cameras` | Diagnostic: cameras, culling masks, a Person's renderers and layers, geometry params |
 
 Do not ask the user to click **On** or delete atoms by hand — `set_person_on` / `remove_person` do that.
 
@@ -256,6 +257,8 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - `setup_couple` paired-pose paths currently assume **vamX 1.52**. A different package version will fail those `load_pose` calls unless that exact package is still installed.
 - `set_expression` only drives morphs that are already on the Person. Missing morphs show up in `missing`; the face will not change.
 - `lock_head` holds head/neck controllers and sets eyes to Target. A glance / look-at plugin on the Person can still turn the head — disable that plugin or lock again after it loads.
+- `capture_view` returns after the next frame ends, and the PNG is your whole VAM window: screen resolution, UI included. Plugin **0.6.2+**; earlier versions rendered a camera into an offscreen texture, which silently left the character out of the picture because VAM skins bodies on the GPU outside that render.
+- `gender` in `list_persons` is guessed from the character name. A male character whose name does not say so is reported as female, which can make `setup_couple` swap the two roles.
 - The MCP server leaves the last `command.json` on disk. Plugin **0.6.1+** claims that id at load and does not re-run it; an older plugin replays that one command every time it loads.
 - `move_person` moves the **root control** only. If the Person's limb controllers are pinned by a pose, the body follows the root but a pose anchored to furniture can end up floating; re-apply the pose after a large move.
 - `add_person` starts a VAM coroutine and returns immediately. `setup_couple` waits about two seconds; a slow machine may need a retry.

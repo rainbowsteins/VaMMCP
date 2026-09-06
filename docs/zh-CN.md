@@ -8,7 +8,7 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 **本项目不能生成角色或衣服。** 它只能搜索并加载硬盘上已有的文件，也不会自动下载 Hub 内容。
 
-当前版本：Session 插件 `VamMcpBridge` 0.6.1，Python 包 `vam-mcp` 0.3.0。
+当前版本：Session 插件 `VamMcpBridge` 0.6.4，Python 包 `vam-mcp` 0.4.0。
 
 ## 工作原理
 
@@ -161,7 +161,7 @@ VAM_ROOT = 'VAM_ROOT'
 | `list_scenes` / `load_scene` | 搜索或加载场景 |
 | `list_persons` | 查看当前场景中的 Person |
 | `add_person` / `remove_person` / `set_person_on` | 添加、删除、显示或隐藏人物 |
-| `capture_view` | 保存当前监视器镜头预览 |
+| `capture_view` | 保存当前画面预览（整个 VAM 窗口，含 UI）|
 | `list_looks` / `load_look` | 搜索并应用外观预设 |
 | `list_clothing` / `load_clothing` | 搜索并应用服装预设 |
 | `list_poses` / `load_pose` | 搜索并应用姿势 |
@@ -169,6 +169,7 @@ VAM_ROOT = 'VAM_ROOT'
 | `lock_head` | 防止头部继续跟随监视器镜头 |
 | `get_position` / `move_person` | 读取并修改人物的世界坐标与朝向 |
 | `setup_couple` | 一次设置两个人物外观和成对姿势 |
+| `debug_cameras` | 诊断用：相机、剔除掩码、人物渲染器与层、geometry 参数 |
 
 ## 常见问题
 
@@ -191,6 +192,9 @@ VAM_ROOT = 'VAM_ROOT'
 - MCP 服务可以控制当前运行的 VAM 会话，并加载 `VAM_ROOT` 下可见的场景和预设。
 - 不要将该 MCP 服务交给不可信的 Agent，也不要将它暴露到网络。
 - 新增 `.var` 或 Look 文件后，必须重启 MCP 进程，目录缓存才会更新。
+- `capture_view` 抓的是帧末的真实后台缓冲，分辨率等于窗口大小，且包含 VAM 的 UI。需要插件 0.6.2+；更早的版本用离屏渲染，会静默地把人物漏掉（VAM 的身体是 GPU 蒙皮，不在那次渲染里）。
+- `load_scene` 在资源加载完成前就返回，紧接着截的图可能是加载画面，需要稍后重截。
+- `list_persons` 的 `gender` 是按角色名猜的。名字看不出性别的男性角色会被判成女性，可能导致 `setup_couple` 把两人的角色搞反。
 - MCP 服务不会删除最后一条 `command.json`。插件 0.6.1+ 会在加载时认领该 id 而不执行；更早的版本每次加载都会把这条陈旧命令重放一遍。
 - `move_person` 只移动人物的根控制器。姿势如果绑定了家具，大幅移动后可能出现悬空，需要重新应用姿势。
 

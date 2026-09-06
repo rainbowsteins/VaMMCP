@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using SimpleJSON;
 using MVR.FileManagementSecure;
@@ -17,6 +19,8 @@ namespace MVRPlugin {
 		protected float nextPoll;
 		protected float nextStatus;
 		protected bool bridgeEnabled = true;
+		// Set by an op that answers from a coroutine instead of inline.
+		protected bool deferResult;
 		protected JSONStorableBool enabledStore;
 		protected JSONStorableString statusStore;
 
@@ -154,13 +158,19 @@ namespace MVRPlugin {
 			WriteStatusFile("running", op);
 
 			try {
+				deferResult = false;
 				JSONClass result = Dispatch(cmd);
 				result["id"] = id;
 				if (result["ok"] == null) {
 					result["ok"] = "true";
 				}
-				SuperController.singleton.SaveJSON(result, resultPath);
-				SetStatus("ok " + op + " id=" + id);
+				if (deferResult) {
+					// A coroutine writes result.json when it has the frame.
+					SetStatus("pending " + op + " id=" + id);
+				} else {
+					SuperController.singleton.SaveJSON(result, resultPath);
+					SetStatus("ok " + op + " id=" + id);
+				}
 			}
 			catch (Exception e) {
 				JSONClass err = new JSONClass();
@@ -199,10 +209,12 @@ namespace MVRPlugin {
 			}
 
 			if (op == "capture_view") {
-				string path = CapturePreview();
-				JSONClass data = new JSONClass();
-				data["path"] = path;
-				result["data"] = data;
+				string capId = "";
+				if (cmd["id"] != null) {
+					capId = cmd["id"].Value;
+				}
+				deferResult = true;
+				SuperController.singleton.StartCoroutine(CaptureCoroutine(capId));
 				return result;
 			}
 
@@ -361,6 +373,11 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "debug_cameras") {
+				result["data"] = DebugCameras();
+				return result;
+			}
+
 			throw new Exception("unknown op: " + op);
 		}
 
@@ -404,6 +421,59 @@ namespace MVRPlugin {
 				}
 			}
 			return "";
+		}
+
+		// The character body is not drawn by an enabled Renderer: VAM skins it on
+		// the GPU and submits the draw inside the normal render loop. A manual
+		// cam.Render() into a RenderTexture runs outside that loop and therefore
+		// captures the room and the hair but no person. Grab the real back buffer
+		// at the end of a frame instead, which is exactly what the user sees.
+		protected IEnumerator CaptureCoroutine(string id) {
+			yield return new WaitForEndOfFrame();
+
+			JSONClass result = new JSONClass();
+			result["id"] = id;
+			result["op"] = "capture_view";
+			JSONClass data = new JSONClass();
+			Texture2D tex = null;
+			try {
+				// ScreenCapture lives in UnityEngine.ScreenCaptureModule, which VAM's
+				// plugin compiler does not reference. ReadPixels with no active
+				// RenderTexture reads the back buffer, which is the same picture.
+				RenderTexture.active = null;
+				int sw = Screen.width;
+				int sh = Screen.height;
+				tex = new Texture2D(sw, sh, TextureFormat.RGB24, false);
+				tex.ReadPixels(new Rect(0, 0, sw, sh), 0, 0);
+				tex.Apply();
+				byte[] bytes = tex.EncodeToPNG();
+				FileManagerSecure.WriteAllBytes(previewPath, bytes);
+				data["path"] = previewPath;
+				data["width"] = tex.width.ToString();
+				data["height"] = tex.height.ToString();
+				data["method"] = "backbuffer";
+				result["ok"] = "true";
+				result["data"] = data;
+			}
+			catch (Exception e) {
+				// Fall back to the old path so a capture still returns something.
+				try {
+					data["path"] = CapturePreview();
+					data["method"] = "camera-render";
+					data["note"] = "back buffer capture failed: " + e.Message;
+					result["ok"] = "true";
+					result["data"] = data;
+				}
+				catch (Exception e2) {
+					result["ok"] = "false";
+					result["error"] = e2.Message;
+				}
+			}
+			if (tex != null) {
+				Destroy(tex);
+			}
+			SuperController.singleton.SaveJSON(result, resultPath);
+			SetStatus("ok capture_view id=" + id);
 		}
 
 		protected string CapturePreview() {
@@ -456,7 +526,33 @@ namespace MVRPlugin {
 				if (geo == null) {
 					return "";
 				}
-				return geo.GetStringParamValue("character");
+				// The param is the "characterSelection" string chooser. The old code
+				// asked for a plain string param named "character", which exists under
+				// neither that name nor that type, so every person came back "unknown".
+				string value = "";
+				try {
+					value = geo.GetStringChooserParamValue("characterSelection");
+				}
+				catch {
+				}
+				if (value == null || value == "") {
+					try {
+						value = geo.GetStringChooserParamValue("character");
+					}
+					catch {
+					}
+				}
+				if (value == null || value == "") {
+					try {
+						value = geo.GetStringParamValue("character");
+					}
+					catch {
+					}
+				}
+				if (value == null) {
+					return "";
+				}
+				return value;
 			}
 			catch {
 				return "";
@@ -868,10 +964,226 @@ namespace MVRPlugin {
 			}
 		}
 
+		// Diagnostic helper: list a storable's string-chooser or plain string
+		// params with their current values, so we can see what "character"
+		// actually is instead of guessing an accessor.
+		protected JSONArray DumpParams(JSONStorable storable, bool choosers) {
+			JSONArray rows = new JSONArray();
+			try {
+				List<string> names;
+				if (choosers) {
+					names = storable.GetStringChooserParamNames();
+				} else {
+					names = storable.GetStringParamNames();
+				}
+				if (names == null) {
+					return rows;
+				}
+				int n = 0;
+				foreach (string name in names) {
+					if (name == null) {
+						continue;
+					}
+					string value = "";
+					try {
+						if (choosers) {
+							value = storable.GetStringChooserParamValue(name);
+						} else {
+							value = storable.GetStringParamValue(name);
+						}
+					}
+					catch {
+					}
+					if (value == null) {
+						value = "";
+					}
+					if (value.Length > 120) {
+						value = value.Substring(0, 120) + "...";
+					}
+					JSONClass row = new JSONClass();
+					row["name"] = name;
+					row["value"] = value;
+					rows.Add(row);
+					n++;
+					if (n >= 40) {
+						break;
+					}
+				}
+			}
+			catch {
+			}
+			return rows;
+		}
+
+		protected JSONArray DumpBoolParams(JSONStorable storable) {
+			JSONArray rows = new JSONArray();
+			try {
+				List<string> names = storable.GetBoolParamNames();
+				if (names == null) {
+					return rows;
+				}
+				int n = 0;
+				foreach (string name in names) {
+					if (name == null) {
+						continue;
+					}
+					JSONClass row = new JSONClass();
+					row["name"] = name;
+					try {
+						row["value"] = Bool(storable.GetBoolParamValue(name));
+					}
+					catch {
+						row["value"] = "?";
+					}
+					rows.Add(row);
+					n++;
+					if (n >= 60) {
+						break;
+					}
+				}
+			}
+			catch {
+			}
+			return rows;
+		}
+
+		protected string Bool(bool value) {
+			if (value) {
+				return "true";
+			}
+			return "false";
+		}
+
+		// Diagnostic. capture_view renders the room and the hair but not the
+		// character. Either a camera culls the person's layers, or the skin is not
+		// drawn by a Renderer at all (GPU skinning / command buffers), which a
+		// manual cam.Render() into a RenderTexture would miss.
+		protected JSONClass DebugCameras() {
+			JSONClass data = new JSONClass();
+
+			Camera monitor = null;
+			try {
+				monitor = SuperController.singleton.MonitorCenterCamera;
+			}
+			catch {
+			}
+			Camera main = Camera.main;
+			if (monitor == null) {
+				data["monitorCenterCamera"] = "";
+			} else {
+				data["monitorCenterCamera"] = monitor.name;
+			}
+			if (main == null) {
+				data["cameraMain"] = "";
+			} else {
+				data["cameraMain"] = main.name;
+			}
+
+			Atom person = null;
+			foreach (Atom atom in SuperController.singleton.GetAtoms()) {
+				if (atom != null && atom.type == "Person") {
+					person = atom;
+					break;
+				}
+			}
+
+			int personMask = 0;
+			JSONClass personInfo = new JSONClass();
+			JSONArray layerRows = new JSONArray();
+			if (person != null) {
+				personInfo["uid"] = person.uid;
+				Dictionary<int, int> counts = new Dictionary<int, int>();
+				Dictionary<int, string> samples = new Dictionary<int, string>();
+				Renderer[] rends = person.gameObject.GetComponentsInChildren<Renderer>(true);
+				int enabledCount = 0;
+				int i;
+				for (i = 0; i < rends.Length; i++) {
+					Renderer r = rends[i];
+					if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) {
+						continue;
+					}
+					enabledCount++;
+					int layer = r.gameObject.layer;
+					personMask |= (1 << layer);
+					if (!counts.ContainsKey(layer)) {
+						counts[layer] = 0;
+						string shader = "";
+						try {
+							if (r.sharedMaterial != null && r.sharedMaterial.shader != null) {
+								shader = r.sharedMaterial.shader.name;
+							}
+						}
+						catch {
+						}
+						// r.GetType().Name would reference System.Reflection.MemberInfo,
+						// which VAM's plugin sandbox rejects. "is" compiles to isinst.
+						string kind = "Renderer";
+						if (r is SkinnedMeshRenderer) {
+							kind = "SkinnedMeshRenderer";
+						} else if (r is MeshRenderer) {
+							kind = "MeshRenderer";
+						}
+						samples[layer] = r.name + " [" + kind + "] " + shader;
+					}
+					counts[layer] = counts[layer] + 1;
+				}
+				personInfo["rendererTotal"] = rends.Length.ToString();
+				personInfo["rendererEnabled"] = enabledCount.ToString();
+				foreach (KeyValuePair<int, int> kv in counts) {
+					JSONClass row = new JSONClass();
+					row["layer"] = kv.Key.ToString();
+					row["layerName"] = LayerMask.LayerToName(kv.Key);
+					row["renderers"] = kv.Value.ToString();
+					row["sample"] = samples[kv.Key];
+					layerRows.Add(row);
+				}
+			}
+			if (person != null) {
+				JSONStorable geo = person.GetStorableByID("geometry");
+				if (geo != null) {
+					personInfo["stringChoosers"] = DumpParams(geo, true);
+					personInfo["strings"] = DumpParams(geo, false);
+					personInfo["bools"] = DumpBoolParams(geo);
+				}
+			}
+			personInfo["layers"] = layerRows;
+			personInfo["layerMaskHex"] = personMask.ToString("X8");
+			data["person"] = personInfo;
+
+			JSONArray cams = new JSONArray();
+			Camera[] all = Camera.allCameras;
+			bool monitorListed = false;
+			int c;
+			for (c = 0; c < all.Length; c++) {
+				Camera cam = all[c];
+				if (cam == null) {
+					continue;
+				}
+				if (monitor != null && cam == monitor) {
+					monitorListed = true;
+				}
+				JSONClass row = new JSONClass();
+				row["name"] = cam.name;
+				row["enabled"] = Bool(cam.enabled);
+				row["depth"] = cam.depth.ToString();
+				row["cullingMaskHex"] = cam.cullingMask.ToString("X8");
+				row["hasTargetTexture"] = Bool(cam.targetTexture != null);
+				row["isMonitorCenter"] = Bool(monitor != null && cam == monitor);
+				row["isMain"] = Bool(main != null && cam == main);
+				row["seesPersonLayers"] = Bool((cam.cullingMask & personMask) != 0);
+				row["personLayersCulledHex"] = (personMask & ~cam.cullingMask).ToString("X8");
+				cams.Add(row);
+			}
+			data["cameraCount"] = all.Length.ToString();
+			data["monitorInAllCameras"] = Bool(monitorListed);
+			data["cameras"] = cams;
+			return data;
+		}
+
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.6.1";
+			data["version"] = "0.6.4";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

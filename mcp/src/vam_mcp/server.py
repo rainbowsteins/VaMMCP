@@ -284,8 +284,15 @@ def setup_couple(female: str, male: str = "", pose: str = "doggy") -> str:
 
 
 @mcp.tool()
+def debug_cameras() -> str:
+    """Diagnostic. Dump every camera with its culling mask, the first Person's enabled renderers and their layers, and the geometry storable's params. Use when a capture looks wrong (person missing, frame black) to tell a camera-culling problem from a render-path one, or to find the real name of a storable param."""
+    result = bridge.call("debug_cameras", timeout=25.0)
+    return _dump(result.get("data") or result)
+
+
+@mcp.tool()
 def capture_view() -> str:
-    """Capture the current VAM monitor camera to Saves/PluginData/vam-mcp/preview.png. Call after any pose/look/scene change and read that PNG."""
+    """Capture the VAM window to Saves/PluginData/vam-mcp/preview.png and read that PNG. Call after any pose/look/scene change. The shot is the real back buffer at the window's own resolution, so it includes the VAM UI and any open panels."""
     result = bridge.call("capture_view", timeout=25.0)
     data = result.get("data") or {}
     if not isinstance(data, dict):

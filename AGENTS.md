@@ -71,7 +71,8 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - Prefer MCP tools on the `vam` server. Do not ask the user to click **On**, delete atoms, or browse presets by hand when a tool exists.
 - Looks / poses / scenes must already exist. If `list_*` returns nothing, say so. Do not promise to create or download content.
 - Workflow: `list_*` -> pick an exact `path` (or uid) -> `load_*`.
-- After any scene, look, clothing, pose, or expression change, call `capture_view` and inspect `Saves/PluginData/vam-mcp/preview.png` (the tool returns `previewAbsolute`).
+- After any scene, look, clothing, pose, or expression change, call `capture_view` and inspect `Saves/PluginData/vam-mcp/preview.png` (the tool returns `previewAbsolute`). The PNG is the whole VAM window, so the VAM UI and any open panel are in it. `load_scene` returns before its assets finish loading, so a preview taken right after one can show a loading screen rather than the scene — capture again before concluding anything.
+- If a capture looks wrong (no person, black frame), call `debug_cameras` before theorising. Do not conclude content is missing from a preview alone.
 - Face only: `set_expression` (alias or a morph name from `list_expressions`). Neutral aliases include `smile`, `neutral`, `surprise`, `sad`, `angry`.
 - Head tracking the monitor camera: `lock_head`.
 - Someone standing in the wrong place or facing the wrong way: call `get_position` first, then
@@ -92,6 +93,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, show/hide |
 | `capture_view` | Screenshot to `preview.png` |
+| `debug_cameras` | Diagnostic when a capture looks wrong |
 | `list_looks` / `load_look` | Appearance `.vap` |
 | `list_clothing` / `load_clothing` | Clothing `.vap` |
 | `list_poses` / `load_pose` | Pose `.vap` |
