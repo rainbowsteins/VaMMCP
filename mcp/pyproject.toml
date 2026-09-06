@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/VamMcp/vam-mcp"
+Homepage = "https://github.com/rainbowsteins/VaMMCP"
 
 [project.scripts]
 vam-mcp = "vam_mcp.server:main"
