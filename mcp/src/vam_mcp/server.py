@@ -10,6 +10,9 @@ from pathlib import Path
 from . import __version__
 from . import bridge
 from .catalog import list_items
+from .character import list_characters as list_characters_impl
+from .character import load_character as load_character_impl
+from .character import save_character as save_character_impl
 from .couple import setup_couple as setup_couple_impl
 from .expression import list_expressions as list_expressions_impl
 from .expression import set_expression as set_expression_impl
@@ -28,7 +31,13 @@ mcp = MCPServer(
         "For face changes use set_expression (smile/neutral/surprise/sad/angry "
         "or a morph name from list_expressions). "
         "If a head turns with the camera, call lock_head. "
-        "After any scene change, call capture_view and inspect the saved PNG."
+        "After any scene change, call capture_view and inspect the saved PNG. "
+        "To build an original character: load_look a close base, then "
+        "list_morphs / set_morphs and list_geometry_options / "
+        "set_geometry_options to adjust, checking capture_view each time, "
+        "and save_character when it is right. Reuse a saved one with "
+        "list_characters / load_character instead of rebuilding it. "
+        "Only installed assets can be combined; nothing new is generated."
     ),
 )
 
@@ -281,6 +290,70 @@ def setup_couple(female: str, male: str = "", pose: str = "doggy") -> str:
     and adds a person if needed. Requires VamMcpBridge 0.3.0+.
     """
     return _dump(_capture_after(setup_couple_impl(female=female, male=male, pose=pose)))
+
+
+@mcp.tool()
+def list_morphs(query: str = "", limit: int = 60, person: str = "") -> str:
+    """Search the morphs actually loaded on a Person, by substring of the display name. Use this to find real morph names before set_morphs: names vary by package (breast size, asian, young, chin, nose...). Returns total/matched counts so you can tell a bad query from an empty library. person is an atom uid; empty uses the first Person."""
+    args: dict[str, Any] = {"query": query, "limit": limit}
+    if person:
+        args["person"] = person
+    result = bridge.call("list_morphs", timeout=30.0, **args)
+    return _dump(result.get("data") or result)
+
+
+@mcp.tool()
+def set_morphs(morphs: list[dict[str, Any]], person: str = "") -> str:
+    """Set any morphs on a Person. morphs is a list of {"name": <display name from list_morphs>, "value": <float>}. Values are usually 0..1 but many morphs accept negatives and up to 2. Does not touch expressions, clothing, or hair. Names that do not exist come back in "missing" rather than failing the whole call."""
+    args: dict[str, Any] = {"morphs": morphs}
+    if person:
+        args["person"] = person
+    result = bridge.call("set_morphs", timeout=30.0, **args)
+    return _dump(_capture_after(result.get("data") or result))
+
+
+@mcp.tool()
+def list_geometry_options(prefix: str = "hair:", query: str = "", limit: int = 80, person: str = "") -> str:
+    """List the hair and clothing items available on a Person. These are bool toggles named "hair:<item>" / "clothing:<item>". prefix filters by kind, query filters by substring (twintail, pigtail, skirt...). "activeInPrefix" tells you what is currently worn. person is an atom uid; empty uses the first Person."""
+    args: dict[str, Any] = {"prefix": prefix, "query": query, "limit": limit}
+    if person:
+        args["person"] = person
+    result = bridge.call("list_geometry_options", timeout=30.0, **args)
+    return _dump(result.get("data") or result)
+
+
+@mcp.tool()
+def set_geometry_options(
+    options: list[dict[str, Any]],
+    clear_prefix: str = "",
+    person: str = "",
+) -> str:
+    """Turn hair or clothing items on or off. options is a list of {"name": "hair:Low Twintails", "on": true}. clear_prefix (e.g. "hair:") switches everything with that prefix off first, so swapping to exactly one hair item is a single call. Get real names from list_geometry_options."""
+    args: dict[str, Any] = {"options": options}
+    if clear_prefix:
+        args["clearPrefix"] = clear_prefix
+    if person:
+        args["person"] = person
+    result = bridge.call("set_geometry_options", timeout=45.0, **args)
+    return _dump(_capture_after(result.get("data") or result))
+
+
+@mcp.tool()
+def save_character(name: str, description: str = "", person: str = "") -> str:
+    """Save the Person's current appearance into the local character library and return its name. Writes a normal VAM appearance preset under Custom/Atom/Person/Appearance/VamMcp plus an index entry, so load_character(name) brings the exact same character back in any later session. Pass a description (age, ethnicity, hair, build) so the character is recognisable in list_characters later. Use this once a character built with set_morphs / set_geometry_options looks right."""
+    return _dump(save_character_impl(name=name, description=description, person=person))
+
+
+@mcp.tool()
+def list_characters(query: str = "") -> str:
+    """List the characters already in the local library, with the description, base character, hair, clothing and notable morphs recorded for each. Call this before building a new character so an existing one gets reused, and to answer "which characters do I have?". Reads from disk, so characters saved after the server started still show up."""
+    return _dump(list_characters_impl(query=query))
+
+
+@mcp.tool()
+def load_character(name: str, person: str = "") -> str:
+    """Load a character from the local library by name (from list_characters) onto a Person. Use this instead of load_look for characters saved with save_character; it reproduces the whole appearance including hair colour."""
+    return _dump(_capture_after(load_character_impl(name=name, person=person)))
 
 
 @mcp.tool()

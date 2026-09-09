@@ -73,6 +73,16 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - Workflow: `list_*` -> pick an exact `path` (or uid) -> `load_*`.
 - After any scene, look, clothing, pose, or expression change, call `capture_view` and inspect `Saves/PluginData/vam-mcp/preview.png` (the tool returns `previewAbsolute`). The PNG is the whole VAM window, so the VAM UI and any open panel are in it. `load_scene` returns before its assets finish loading, so a preview taken right after one can show a loading screen rather than the scene — capture again before concluding anything.
 - If a capture looks wrong (no person, black frame), call `debug_cameras` before theorising. Do not conclude content is missing from a preview alone.
+- New original character: `list_characters` first and reuse one if it fits. Otherwise `load_look` the
+  closest installed base, then `list_morphs` -> `set_morphs` and `list_geometry_options` ->
+  `set_geometry_options`, checking `capture_view` between steps, and finish with
+  `save_character(name, description)`. Report the saved name to the user; that name is how they ask
+  for the character next time. Never guess a morph or hair name — `list_*` gives the real one.
+- Ethnicity is not a morph. There is no general "Asian" slider; start from an installed look of the
+  right ethnicity. Say so rather than promising to shape a face from scratch.
+- To set something no tool covers (hair colour, materials), write a `.vap` with
+  `setUnlistedParamsToDefault: false` listing just that storable and load it with `load_look`. Get the
+  parameter names out of presets already in `AddonPackages`; do not invent them.
 - Face only: `set_expression` (alias or a morph name from `list_expressions`). Neutral aliases include `smile`, `neutral`, `surprise`, `sad`, `angry`.
 - Head tracking the monitor camera: `lock_head`.
 - Someone standing in the wrong place or facing the wrong way: call `get_position` first, then
@@ -93,6 +103,9 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, show/hide |
 | `capture_view` | Screenshot to `preview.png` |
+| `list_morphs` / `set_morphs` | Find and set any morph |
+| `list_geometry_options` / `set_geometry_options` | Hair / clothing toggles |
+| `save_character` / `list_characters` / `load_character` | Local character library |
 | `debug_cameras` | Diagnostic when a capture looks wrong |
 | `list_looks` / `load_look` | Appearance `.vap` |
 | `list_clothing` / `load_clothing` | Clothing `.vap` |

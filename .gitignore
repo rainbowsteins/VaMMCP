@@ -5,6 +5,7 @@
 *.local.json
 # Machine-specific MCP client config (templates live in examples/)
 opencode.json
+.mcp.json
 
 # Python
 __pycache__/

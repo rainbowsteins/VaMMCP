@@ -373,6 +373,66 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "list_morphs") {
+				Atom person = RequiredPerson(cmd);
+				string query = "";
+				if (cmd["query"] != null) {
+					query = cmd["query"].Value;
+				}
+				int limit = 60;
+				if (cmd["limit"] != null) {
+					limit = cmd["limit"].AsInt;
+				}
+				result["data"] = ListMorphs(person, query, limit);
+				return result;
+			}
+
+			if (op == "set_morphs") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = SetMorphs(person, cmd);
+				return result;
+			}
+
+			if (op == "list_geometry_options") {
+				Atom person = RequiredPerson(cmd);
+				string prefix = "";
+				if (cmd["prefix"] != null) {
+					prefix = cmd["prefix"].Value;
+				}
+				string query = "";
+				if (cmd["query"] != null) {
+					query = cmd["query"].Value;
+				}
+				int limit = 80;
+				if (cmd["limit"] != null) {
+					limit = cmd["limit"].AsInt;
+				}
+				result["data"] = GeometryOptions(person, prefix, query, limit);
+				return result;
+			}
+
+			if (op == "set_geometry_options") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = SetGeometryOptions(person, cmd);
+				return result;
+			}
+
+			if (op == "get_appearance") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = GetAppearance(person);
+				return result;
+			}
+
+			if (op == "save_look") {
+				Atom person = RequiredPerson(cmd);
+				string name = "";
+				if (cmd["name"] != null) {
+					name = cmd["name"].Value;
+				}
+				result["data"] = SaveLook(person, name);
+				return result;
+			}
+
 			if (op == "debug_cameras") {
 				result["data"] = DebugCameras();
 				return result;
@@ -1180,10 +1240,383 @@ namespace MVRPlugin {
 			return data;
 		}
 
+		protected JSONClass ListMorphs(Atom person, string query, int limit) {
+			GenerateDAZMorphsControlUI ui = MorphUI(person);
+			string q = "";
+			if (query != null) {
+				q = query.ToLower();
+			}
+			if (limit < 1) {
+				limit = 1;
+			}
+			if (limit > 300) {
+				limit = 300;
+			}
+			JSONArray items = new JSONArray();
+			int total = 0;
+			int matched = 0;
+			foreach (string display in ui.GetMorphDisplayNames()) {
+				total++;
+				if (display == null) {
+					continue;
+				}
+				if (q != "" && display.ToLower().IndexOf(q) < 0) {
+					continue;
+				}
+				matched++;
+				if (items.Count >= limit) {
+					continue;
+				}
+				JSONClass row = new JSONClass();
+				row["name"] = display;
+				DAZMorph morph = ui.GetMorphByDisplayName(display);
+				if (morph != null) {
+					row["value"] = morph.morphValue.ToString();
+					try {
+						if (morph.region != null) {
+							row["region"] = morph.region;
+						}
+					}
+					catch {
+					}
+				}
+				items.Add(row);
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["total"] = total.ToString();
+			data["matched"] = matched.ToString();
+			data["returned"] = items.Count.ToString();
+			data["items"] = items;
+			return data;
+		}
+
+		// Like set_expression but for any morph, and it does not clear expressions.
+		protected JSONClass SetMorphs(Atom person, JSONClass cmd) {
+			GenerateDAZMorphsControlUI ui = MorphUI(person);
+			JSONArray applied = new JSONArray();
+			JSONArray missing = new JSONArray();
+			if (cmd["morphs"] != null && cmd["morphs"].AsArray != null) {
+				JSONArray want = cmd["morphs"].AsArray;
+				int i;
+				for (i = 0; i < want.Count; i++) {
+					JSONClass row = want[i].AsObject;
+					if (row == null) {
+						continue;
+					}
+					string name = "";
+					if (row["name"] != null) {
+						name = row["name"].Value;
+					}
+					if (name == null || name == "") {
+						continue;
+					}
+					float value = 0f;
+					if (row["value"] != null) {
+						value = row["value"].AsFloat;
+					}
+					DAZMorph morph = FindMorph(ui, name);
+					if (morph == null) {
+						missing.Add(name);
+						continue;
+					}
+					morph.morphValue = value;
+					JSONClass done = new JSONClass();
+					done["name"] = morph.displayName;
+					done["value"] = morph.morphValue.ToString();
+					applied.Add(done);
+				}
+			}
+			if (applied.Count == 0 && missing.Count > 0) {
+				throw new Exception("no morph matched on " + person.uid + "; check names with list_morphs");
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["applied"] = applied;
+			data["missing"] = missing;
+			return data;
+		}
+
+		// Hair and clothing are bool params on geometry, named "hair:<item>" and
+		// "clothing:<item>". List them so a caller can use the real names.
+		protected JSONClass GeometryOptions(Atom person, string prefix, string query, int limit) {
+			JSONStorable geo = person.GetStorableByID("geometry");
+			if (geo == null) {
+				throw new Exception("no geometry on " + person.uid);
+			}
+			string p = "";
+			if (prefix != null) {
+				p = prefix.ToLower();
+			}
+			string q = "";
+			if (query != null) {
+				q = query.ToLower();
+			}
+			if (limit < 1) {
+				limit = 1;
+			}
+			if (limit > 400) {
+				limit = 400;
+			}
+			JSONArray items = new JSONArray();
+			JSONArray active = new JSONArray();
+			int matched = 0;
+			int total = 0;
+			List<string> names = geo.GetBoolParamNames();
+			if (names != null) {
+				foreach (string name in names) {
+					if (name == null) {
+						continue;
+					}
+					total++;
+					string lower = name.ToLower();
+					if (p != "" && !lower.StartsWith(p)) {
+						continue;
+					}
+					bool on = false;
+					try {
+						on = geo.GetBoolParamValue(name);
+					}
+					catch {
+					}
+					if (on) {
+						active.Add(name);
+					}
+					if (q != "" && lower.IndexOf(q) < 0) {
+						continue;
+					}
+					matched++;
+					if (items.Count >= limit) {
+						continue;
+					}
+					JSONClass row = new JSONClass();
+					row["name"] = name;
+					row["on"] = Bool(on);
+					items.Add(row);
+				}
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["total"] = total.ToString();
+			data["matched"] = matched.ToString();
+			data["returned"] = items.Count.ToString();
+			data["activeInPrefix"] = active;
+			data["items"] = items;
+			return data;
+		}
+
+		protected JSONClass SetGeometryOptions(Atom person, JSONClass cmd) {
+			JSONStorable geo = person.GetStorableByID("geometry");
+			if (geo == null) {
+				throw new Exception("no geometry on " + person.uid);
+			}
+			// clearPrefix runs first, so "exactly one hair item" is one call.
+			JSONArray cleared = new JSONArray();
+			string clear = "";
+			if (cmd["clearPrefix"] != null) {
+				clear = cmd["clearPrefix"].Value;
+			}
+			if (clear != null && clear != "") {
+				string cl = clear.ToLower();
+				List<string> names = geo.GetBoolParamNames();
+				if (names != null) {
+					foreach (string name in names) {
+						if (name == null || !name.ToLower().StartsWith(cl)) {
+							continue;
+						}
+						try {
+							if (geo.GetBoolParamValue(name)) {
+								geo.SetBoolParamValue(name, false);
+								cleared.Add(name);
+							}
+						}
+						catch {
+						}
+					}
+				}
+			}
+
+			JSONArray applied = new JSONArray();
+			JSONArray failed = new JSONArray();
+			if (cmd["options"] != null && cmd["options"].AsArray != null) {
+				JSONArray want = cmd["options"].AsArray;
+				int i;
+				for (i = 0; i < want.Count; i++) {
+					JSONClass row = want[i].AsObject;
+					if (row == null) {
+						continue;
+					}
+					string name = "";
+					if (row["name"] != null) {
+						name = row["name"].Value;
+					}
+					if (name == null || name == "") {
+						continue;
+					}
+					bool on = true;
+					if (row["on"] != null) {
+						on = row["on"].AsBool;
+					}
+					try {
+						geo.SetBoolParamValue(name, on);
+						JSONClass done = new JSONClass();
+						done["name"] = name;
+						done["on"] = Bool(on);
+						applied.Add(done);
+					}
+					catch (Exception e) {
+						JSONClass bad = new JSONClass();
+						bad["name"] = name;
+						bad["error"] = e.Message;
+						failed.Add(bad);
+					}
+				}
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["cleared"] = cleared;
+			data["applied"] = applied;
+			data["failed"] = failed;
+			return data;
+		}
+
+		// Which storables belong in an appearance preset. A whitelist, so plugins,
+		// controllers and physics never leak into a saved look.
+		protected bool AppearanceStorable(string sid) {
+			if (sid == null || sid == "") {
+				return false;
+			}
+			string l = sid.ToLower();
+			if (l.IndexOf("control") >= 0 || l.IndexOf("tool") >= 0) {
+				return false;
+			}
+			if (l.StartsWith("plugin")) {
+				return false;
+			}
+			if (l == "geometry" || l == "skin" || l == "eyes" || l == "rescaleobject") {
+				return true;
+			}
+			if (l.IndexOf("material") >= 0) {
+				return true;
+			}
+			if (l.IndexOf("hair") >= 0 || l.IndexOf("clothing") >= 0) {
+				return true;
+			}
+			return false;
+		}
+
+		// Read-only counterpart of save_look: hand the appearance JSON back and let
+		// the MCP server write the file. The server has plain filesystem access, so
+		// this avoids VAM's "plugin wants to save json" prompt, and which storables
+		// count as appearance becomes a server-side decision that needs no reload.
+		// Controllers and plugins are dropped here because those are pose, not looks.
+		protected JSONClass GetAppearance(Atom person) {
+			JSONArray storables = new JSONArray();
+			JSONArray skipped = new JSONArray();
+			foreach (string sid in person.GetStorableIDs()) {
+				if (sid == null || sid == "") {
+					continue;
+				}
+				string l = sid.ToLower();
+				if (l.IndexOf("control") >= 0 || l.StartsWith("plugin") || l.IndexOf("animation") >= 0) {
+					skipped.Add(sid);
+					continue;
+				}
+				JSONStorable st = person.GetStorableByID(sid);
+				if (st == null) {
+					continue;
+				}
+				try {
+					JSONClass js = st.GetJSON();
+					if (js == null) {
+						continue;
+					}
+					js["id"] = sid;
+					storables.Add(js);
+				}
+				catch {
+				}
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["count"] = storables.Count.ToString();
+			data["skippedCount"] = skipped.Count.ToString();
+			data["storables"] = storables;
+			return data;
+		}
+
+		// Superseded by get_appearance: this path makes VAM ask the user to allow a
+		// plugin file write. Kept so an older server keeps working.
+		protected JSONClass SaveLook(Atom person, string name) {
+			string safe = "";
+			if (name != null) {
+				int i;
+				for (i = 0; i < name.Length; i++) {
+					char c = name[i];
+					bool okChar = char.IsLetterOrDigit(c);
+					if (c == 95 || c == 45 || c == 32) {
+						okChar = true;
+					}
+					if (okChar) {
+						safe = safe + c;
+					}
+				}
+				safe = safe.Trim();
+			}
+			if (safe == "") {
+				throw new Exception("save_look needs a name of letters, digits, space, _ or -");
+			}
+			if (safe.Length > 60) {
+				safe = safe.Substring(0, 60);
+			}
+
+			JSONArray storables = new JSONArray();
+			JSONArray kept = new JSONArray();
+			foreach (string sid in person.GetStorableIDs()) {
+				if (!AppearanceStorable(sid)) {
+					continue;
+				}
+				JSONStorable st = person.GetStorableByID(sid);
+				if (st == null) {
+					continue;
+				}
+				try {
+					JSONClass js = st.GetJSON();
+					if (js == null) {
+						continue;
+					}
+					js["id"] = sid;
+					storables.Add(js);
+					kept.Add(sid);
+				}
+				catch {
+				}
+			}
+			if (storables.Count == 0) {
+				throw new Exception("nothing appearance-like to save on " + person.uid);
+			}
+
+			JSONClass vap = new JSONClass();
+			vap["setUnlistedParamsToDefault"] = "true";
+			vap["storables"] = storables;
+
+			string dir = "Custom/Atom/Person/Appearance/VamMcp";
+			FileManagerSecure.CreateDirectory(dir);
+			string rel = dir + "/Preset_" + safe + ".vap";
+			SuperController.singleton.SaveJSON(vap, rel);
+
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["name"] = safe;
+			data["path"] = rel;
+			data["storables"] = kept;
+			return data;
+		}
+
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.6.4";
+			data["version"] = "0.8.0";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

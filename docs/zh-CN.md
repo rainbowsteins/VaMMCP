@@ -6,9 +6,9 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 本项目与 Mesh VR、Virt-A-Mate 或 vamX 没有隶属、背书或官方支持关系。你需要合法拥有并使用相关软件和内容。详见 [NOTICE.md](../NOTICE.md?plain=1)。
 
-**本项目不能生成角色或衣服。** 它只能搜索并加载硬盘上已有的文件，也不会自动下载 Hub 内容。
+**本项目不能生成素材。** 它搜索并加载硬盘上已有的文件，并且可以把已安装的 morph、发型和服装**组合**成一个原创角色，保存到本地角色库。它不会创造你没有的 morph、贴图或发型网格，也不会自动下载 Hub 内容。
 
-当前版本：Session 插件 `VamMcpBridge` 0.6.4，Python 包 `vam-mcp` 0.4.0。
+当前版本：Session 插件 `VamMcpBridge` 0.8.0，Python 包 `vam-mcp` 0.6.0。
 
 ## 工作原理
 
@@ -169,6 +169,9 @@ VAM_ROOT = 'VAM_ROOT'
 | `lock_head` | 防止头部继续跟随监视器镜头 |
 | `get_position` / `move_person` | 读取并修改人物的世界坐标与朝向 |
 | `setup_couple` | 一次设置两个人物外观和成对姿势 |
+| `list_morphs` / `set_morphs` | 搜索并设置任意 morph |
+| `list_geometry_options` / `set_geometry_options` | 发型 / 服装开关 |
+| `save_character` / `list_characters` / `load_character` | 本地角色库 |
 | `debug_cameras` | 诊断用：相机、剔除掩码、人物渲染器与层、geometry 参数 |
 
 ## 常见问题
@@ -195,6 +198,10 @@ VAM_ROOT = 'VAM_ROOT'
 - `capture_view` 抓的是帧末的真实后台缓冲，分辨率等于窗口大小，且包含 VAM 的 UI。需要插件 0.6.2+；更早的版本用离屏渲染，会静默地把人物漏掉（VAM 的身体是 GPU 蒙皮，不在那次渲染里）。
 - `load_scene` 在资源加载完成前就返回，紧接着截的图可能是加载画面，需要稍后重截。
 - `list_persons` 的 `gender` 是按角色名猜的。名字看不出性别的男性角色会被判成女性，可能导致 `setup_couple` 把两人的角色搞反。
+- 做原创角色只能组合已装素材。**族裔不是滑块** —— VAM 没有通用的"亚洲"morph（全库只有一个 `Eyelids asian`），必须从一个已安装的对应族裔 Look 出发再调整。
+- 如果人物身上加载了 `TittyMagic`，`Breasts Small` 会被它归零。可靠的旋钮是 `Flat Chested`。
+- 发色在名为 `<发型internalId>Sim` 的 storable 上，参数是 `rootColor` / `tipColor`（HSV），不是 morph。
+- 没有专门工具的参数（材质、颜色）可以手写一个 `setUnlistedParamsToDefault: false` 的 `.vap`，只列出目标 storable 和参数，再用 `load_look` 灌入 —— 插件会按 id 匹配任意 storable。参数名到 `AddonPackages` 里已有的 preset 里去查，不要猜。
 - MCP 服务不会删除最后一条 `command.json`。插件 0.6.1+ 会在加载时认领该 id 而不执行；更早的版本每次加载都会把这条陈旧命令重放一遍。
 - `move_person` 只移动人物的根控制器。姿势如果绑定了家具，大幅移动后可能出现悬空，需要重新应用姿势。
 

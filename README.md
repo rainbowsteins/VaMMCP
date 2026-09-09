@@ -8,14 +8,14 @@ VamMCP is an unofficial [Model Context Protocol](https://modelcontextprotocol.io
 
 This project is **not affiliated with Mesh VR, Virt-A-Mate, or vamX**. You must own legal copies of the software and content you use. See [NOTICE.md](NOTICE.md?plain=1).
 
-**It does not generate characters or clothes.** It only searches and loads files already on disk.
+**It does not generate assets.** It searches and loads files already on disk, and it can *combine* installed morphs, hair and clothing into an original character that it saves to a local library. It never creates a morph, texture or hair mesh you do not already own, and it never downloads from the Hub.
 
 Current pieces:
 
 | Piece | Version |
 | --- | --- |
-| Session plugin `VamMcpBridge` | 0.6.4 |
-| Python package `vam-mcp` | 0.4.0 |
+| Session plugin `VamMcpBridge` | 0.8.0 |
+| Python package `vam-mcp` | 0.6.0 |
 
 ## How it works
 
@@ -231,6 +231,32 @@ After any scene / look / pose change the server writes a screenshot to `Saves/Pl
 
 Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes use `set_expression` (plugin **0.5.0+**). Head tracking uses `lock_head` (plugin **0.5.1+**). Placement uses `get_position` then `move_person` (plugin **0.6.0+**). After you update `VamMcpBridge.cs`, **Reload** the Session Plugin.
 
+## Build an original character
+
+`list_looks` / `load_look` only replay presets someone already made. To make a
+new character, start from the closest installed look and adjust it:
+
+1. `list_looks` -> `load_look` a base in roughly the right direction.
+2. `list_morphs` with a substring (`flat`, `young`, `chin`) to learn the **real**
+   morph names, then `set_morphs`. Names differ per package, so never guess one.
+3. `list_geometry_options(prefix="hair:")` / `set_geometry_options` for hair and
+   clothing. `clear_prefix="hair:"` swaps to exactly one item in a single call.
+4. `capture_view` after each step and actually look at the PNG.
+5. `save_character(name, description)` when it is right. Write a description
+   that says age, ethnicity, hair and build, because that is what
+   `list_characters` shows in a later session.
+
+Reuse comes first: call `list_characters` before building anything, and
+`load_character(name)` if a suitable character already exists. That matters for
+comics and any other work that needs the same face across many renders.
+
+Anything with no dedicated tool can still be set by writing a small `.vap` with
+`setUnlistedParamsToDefault: false` that lists only the storable and parameters
+you want, then loading it with `load_look`. The plugin restores any storable id
+it finds in a preset, so this reaches materials, colours and hair. Find the
+parameter names by grepping the presets already installed under `AddonPackages`
+rather than guessing them.
+
 ## Tools
 
 | Tool | Role |
@@ -247,6 +273,9 @@ Typical tool flow: `list_*` -> pick an exact `path` -> `load_*`. Face changes us
 | `lock_head` | Hold the head still so it does not follow the monitor camera |
 | `get_position` / `move_person` | Read a Person's world position and rotation, then move or turn them |
 | `setup_couple` | One-shot: resolve two looks, enable or add people, apply a paired pose |
+| `list_morphs` / `set_morphs` | Search the morphs on a Person and set any of them |
+| `list_geometry_options` / `set_geometry_options` | Hair and clothing toggles (`hair:` / `clothing:`) |
+| `save_character` / `list_characters` / `load_character` | The local character library |
 | `debug_cameras` | Diagnostic: cameras, culling masks, a Person's renderers and layers, geometry params |
 
 Do not ask the user to click **On** or delete atoms by hand — `set_person_on` / `remove_person` do that.
@@ -259,6 +288,9 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - `lock_head` holds head/neck controllers and sets eyes to Target. A glance / look-at plugin on the Person can still turn the head — disable that plugin or lock again after it loads.
 - `capture_view` returns after the next frame ends, and the PNG is your whole VAM window: screen resolution, UI included. Plugin **0.6.2+**; earlier versions rendered a camera into an offscreen texture, which silently left the character out of the picture because VAM skins bodies on the GPU outside that render.
 - `gender` in `list_persons` is guessed from the character name. A male character whose name does not say so is reported as female, which can make `setup_couple` swap the two roles.
+- Building a character only combines installed assets. Ethnicity in particular is not a slider: VAM ships no general "Asian" morph, so start from an installed look of the right ethnicity and adjust from there.
+- `Breasts Small` does not stick if `TittyMagic` is loaded on the Person — that plugin drives breast morphs. `Flat Chested` is the reliable knob.
+- Hair colour lives on the sim-hair storable `<hair internalId>Sim` as `rootColor` / `tipColor` HSV values, not on a morph. `save_character` captures it; a plain `load_look` of someone else's preset may not carry it.
 - The MCP server leaves the last `command.json` on disk. Plugin **0.6.1+** claims that id at load and does not re-run it; an older plugin replays that one command every time it loads.
 - `move_person` moves the **root control** only. If the Person's limb controllers are pinned by a pose, the body follows the root but a pose anchored to furniture can end up floating; re-apply the pose after a large move.
 - `add_person` starts a VAM coroutine and returns immediately. `setup_couple` waits about two seconds; a slow machine may need a retry.
