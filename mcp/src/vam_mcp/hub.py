@@ -16,9 +16,9 @@ from typing import Any
 
 from . import bridge
 
-# Sort choices VAM offers; the plugin matches these loosely against the real
-# chooser values, so a near-miss still lands on the right one.
-POPULAR = "download"
+# One of HubBrowse's real sortPrimary values. The plugin prefers an exact match,
+# so this picks all-time Downloads rather than "Trending Downloads".
+POPULAR = "Downloads"
 
 
 def _mb(n: Any) -> str:
@@ -90,6 +90,15 @@ def search_hub(
         )
     data["results"] = out
     data["shown"] = len(out)
+    if str(data.get("stale", "")).lower() == "true":
+        # The Hub kept showing the previous page. Reporting those rows as the
+        # answer would be worse than reporting nothing.
+        data["results"] = []
+        data["shown"] = 0
+        data["error"] = (
+            "the Hub never refreshed, so these would have been the previous "
+            "query's results - retry, or check hub_info that the Hub is enabled"
+        )
     return data
 
 

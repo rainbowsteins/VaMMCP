@@ -1806,6 +1806,52 @@ namespace MVRPlugin {
 			return found;
 		}
 
+		protected HubBrowseUI HubUI() {
+			HubBrowse hb = Hub();
+			HubBrowseUI[] found = hb.transform.root.GetComponentsInChildren<HubBrowseUI>(true);
+			if (found == null || found.Length == 0) {
+				found = UnityEngine.Object.FindObjectsOfType<HubBrowseUI>();
+			}
+			if (found == null || found.Length == 0) {
+				return null;
+			}
+			return found[0];
+		}
+
+		protected string HubResourceCountText() {
+			HubBrowseUI ui = HubUI();
+			if (ui == null || ui.numResourcesText == null) {
+				return "";
+			}
+			return ui.numResourcesText.text;
+		}
+
+		// A cheap fingerprint of the current result page, so a stale page cannot
+		// be reported as if it were the answer to the new query.
+		protected string HubSignature() {
+			try {
+				HubResourceItemUI[] uis = HubItemUIs();
+				string sig = uis.Length.ToString();
+				for (int i = 0; i < uis.Length && i < 5; i++) {
+					if (uis[i].connectedItem != null) {
+						sig = sig + ":" + uis[i].connectedItem.ResourceId;
+					}
+				}
+				return sig;
+			}
+			catch {
+				return "";
+			}
+		}
+
+		protected bool HubRefreshing() {
+			HubBrowseUI ui = HubUI();
+			if (ui == null || ui.refreshIndicator == null) {
+				return false;
+			}
+			return ui.refreshIndicator.activeInHierarchy;
+		}
+
 		protected bool Lit(GameObject go) {
 			return go != null && go.activeInHierarchy;
 		}
@@ -1855,12 +1901,20 @@ namespace MVRPlugin {
 				if (choices == null) {
 					continue;
 				}
-				for (int k = 0; k < choices.Count; k++) {
-					string c = choices[k];
-					if (c != null && c.ToLower().IndexOf(wantedValue.ToLower()) >= 0) {
-						hb.SetStringChooserParamValue(n, c);
-						report[idToken] = n + " = " + c;
-						return c;
+				string want = wantedValue.ToLower();
+				for (int pass = 0; pass < 2; pass++) {
+					for (int k = 0; k < choices.Count; k++) {
+						string c = choices[k];
+						if (c == null) {
+							continue;
+						}
+						string lc = c.ToLower();
+						bool hit = pass == 0 ? lc == want : lc.IndexOf(want) >= 0;
+						if (hit) {
+							hb.SetStringChooserParamValue(n, c);
+							report[idToken] = n + " = " + c;
+							return c;
+						}
 					}
 				}
 				JSONArray arr = new JSONArray();
@@ -1964,6 +2018,7 @@ namespace MVRPlugin {
 		// these two fields. Only ever read right after the coroutine returns.
 		protected float settleWaited;
 		protected int settleCount;
+		protected bool settleSawRefresh;
 
 		protected int HubCount(bool packages) {
 			try {
@@ -1982,8 +2037,33 @@ namespace MVRPlugin {
 			}
 		}
 
-		// Settle on the result set: there is no public "refresh finished" flag,
-		// so wait until the card count stops changing three checks running.
+		// Wait out a Hub refresh using VAM's own indicator. Setting a filter also
+		// schedules a delayed refresh of VAM's own, so the indicator can light
+		// twice; only treat it as finished once it has been dark for a while.
+		protected IEnumerator SettleRefresh(float wait) {
+			float t = 0f;
+			bool sawActive = false;
+			int dark = 0;
+			while (t < wait) {
+				yield return new WaitForSeconds(0.25f);
+				t += 0.25f;
+				if (HubRefreshing()) {
+					sawActive = true;
+					dark = 0;
+				} else {
+					dark++;
+					// 2s dark after a refresh, or 5s of nothing happening at all.
+					if ((sawActive && dark >= 8) || (!sawActive && dark >= 20)) {
+						break;
+					}
+				}
+			}
+			settleSawRefresh = sawActive;
+			settleCount = HubCount(false);
+			settleWaited = t;
+		}
+
+		// The package list has no indicator of its own, so settle on its size.
 		protected IEnumerator SettleCount(bool packages, float wait) {
 			float t = 0f;
 			int stable = 0;
@@ -2011,6 +2091,7 @@ namespace MVRPlugin {
 			JSONClass applied = new JSONClass();
 			string err = null;
 			float wait = 25f;
+			string before = HubSignature();
 			try {
 				HubBrowse hb = Hub();
 				if (!hb.HubEnabled) {
@@ -2047,7 +2128,7 @@ namespace MVRPlugin {
 				yield break;
 			}
 
-			yield return SuperController.singleton.StartCoroutine(SettleCount(false, wait));
+			yield return SuperController.singleton.StartCoroutine(SettleRefresh(wait));
 
 			try {
 				int limit = 20;
@@ -2089,6 +2170,15 @@ namespace MVRPlugin {
 				data["applied"] = applied;
 				data["waited"] = settleWaited.ToString("0.0");
 				data["matched"] = rows.Count.ToString();
+				data["resourceCount"] = HubResourceCountText();
+				data["sawRefresh"] = settleSawRefresh ? "true" : "false";
+				string after = HubSignature();
+				if (after == before && !settleSawRefresh) {
+					data["stale"] = "true";
+					data["note"] = "the result page never changed and no refresh was seen - these are the previous results, not this query";
+				} else {
+					data["stale"] = "false";
+				}
 				data["results"] = arr;
 			}
 			catch (Exception e2) {
@@ -2193,7 +2283,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.0";
+			data["version"] = "0.10.1";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

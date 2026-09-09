@@ -398,7 +398,7 @@ def search_hub(
     query: str,
     category: str = "",
     pay_type: str = "Free",
-    sort: str = "download",
+    sort: str = "Downloads",
     creator: str = "",
     limit: int = 20,
     hide_installed: bool = False,
