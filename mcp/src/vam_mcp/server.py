@@ -18,6 +18,7 @@ from .expression import list_expressions as list_expressions_impl
 from .expression import set_expression as set_expression_impl
 from .headlock import lock_head as lock_head_impl
 from .paths import vam_root
+from .pose import load_pose as load_pose_impl
 
 mcp = MCPServer(
     name="vam-mcp",
@@ -210,13 +211,10 @@ def load_clothing(path: str, person: str = "") -> str:
 
 
 @mcp.tool()
-def load_pose(path: str, person: str = "") -> str:
-    """Load a pose preset. person is an atom uid, empty for the first Person, or 'all' to pose everyone (两个人都坐下)."""
-    args: dict[str, Any] = {"path": path}
-    if person:
-        args["person"] = person
-    result = bridge.call("load_pose", timeout=45.0, **args)
-    return _dump(_capture_after(result.get("data") or result))
+def load_pose(path: str, person: str = "", include_appearance: bool = False) -> str:
+    """Load a pose preset, applying only the controllers that make up the pose. Many presets filed as poses (vamX's _POSE LIBRARY among them) also carry a geometry storable, and applying that wholesale replaces the character's face, hair and clothing. Those storables are dropped and reported. person is an atom uid, empty for the first Person, or 'all' to pose everyone. Set include_appearance=True only when you do want the preset's look as well."""
+    return _dump(_capture_after(load_pose_impl(
+        path=path, person=person, include_appearance=include_appearance)))
 
 
 @mcp.tool()

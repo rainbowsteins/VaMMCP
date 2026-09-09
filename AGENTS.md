@@ -90,6 +90,16 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   `load_character` does this reset for you.
 - A button on a storable is a `JSONStorableAction`; `RestoreFromJSON` never touches one, so a vap
   cannot press it. Use `list_actions` to find it and `call_action` to press it.
+- `load_pose` applies pose storables only. Presets filed as poses often are not pose-only -
+  vamX's `_POSE LIBRARY` entries carry a `geometry` storable, and applying one wholesale
+  replaced a built character's face, hair and clothing. What gets dropped is reported;
+  `include_appearance=true` opts back in when the preset's look is genuinely wanted.
+- A clothing item can hold several materials (`NoOC:SailorLingerieMaterialTop` / `...Skirt` /
+  `...Socks`). To keep part of an outfit and drop the rest, set `hideMaterial` on the material
+  through a vap rather than hunting for a different item.
+- Sheerness is a material setting, not a texture: `Alpha Adjust` above zero plus a low
+  `Specular Intensity` is what makes legwear read as nylon. Measuring a jpg diffuse says
+  nothing about it - jpg has no alpha channel.
 - Ethnicity is not a morph. There is no general "Asian" slider; start from an installed look of the
   right ethnicity. Say so rather than promising to shape a face from scratch.
 - To set something no tool covers (hair colour, materials), write a `.vap` with
