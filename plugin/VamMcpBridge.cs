@@ -1782,6 +1782,8 @@ namespace MVRPlugin {
 		// Result cards are prefab instances parented under the Hub canvas. Walk
 		// from the root so a container we cannot name still matches, then fall
 		// back to a scene-wide search.
+		// VAM keeps old cards and detail panels around instead of destroying them,
+		// so anything not currently on screen belongs to a previous page.
 		protected HubResourceItemUI[] HubItemUIs() {
 			HubBrowse hb = Hub();
 			HubResourceItemUI[] found = hb.transform.root.GetComponentsInChildren<HubResourceItemUI>(true);
@@ -1789,9 +1791,16 @@ namespace MVRPlugin {
 				found = UnityEngine.Object.FindObjectsOfType<HubResourceItemUI>();
 			}
 			if (found == null) {
-				found = new HubResourceItemUI[0];
+				return new HubResourceItemUI[0];
 			}
-			return found;
+			List<HubResourceItemUI> live = new List<HubResourceItemUI>();
+			for (int i = 0; i < found.Length; i++) {
+				if (found[i] != null && found[i].gameObject.activeInHierarchy) {
+					live.Add(found[i]);
+				}
+			}
+			hubScanHidden = found.Length - live.Count;
+			return live.ToArray();
 		}
 
 		protected HubResourceItemDetailUI[] HubDetailUIs() {
@@ -1801,9 +1810,15 @@ namespace MVRPlugin {
 				found = UnityEngine.Object.FindObjectsOfType<HubResourceItemDetailUI>();
 			}
 			if (found == null) {
-				found = new HubResourceItemDetailUI[0];
+				return new HubResourceItemDetailUI[0];
 			}
-			return found;
+			List<HubResourceItemDetailUI> live = new List<HubResourceItemDetailUI>();
+			for (int i = 0; i < found.Length; i++) {
+				if (found[i] != null && found[i].gameObject.activeInHierarchy) {
+					live.Add(found[i]);
+				}
+			}
+			return live.ToArray();
 		}
 
 		protected HubBrowseUI HubUI() {
@@ -2019,6 +2034,8 @@ namespace MVRPlugin {
 		protected float settleWaited;
 		protected int settleCount;
 		protected bool settleSawRefresh;
+		// How many cached, off-screen cards the last scan skipped.
+		protected int hubScanHidden;
 
 		protected int HubCount(bool packages) {
 			try {
@@ -2172,6 +2189,7 @@ namespace MVRPlugin {
 				data["matched"] = rows.Count.ToString();
 				data["resourceCount"] = HubResourceCountText();
 				data["sawRefresh"] = settleSawRefresh ? "true" : "false";
+				data["hiddenCardsSkipped"] = hubScanHidden.ToString();
 				string after = HubSignature();
 				if (after == before && !settleSawRefresh) {
 					data["stale"] = "true";
@@ -2231,6 +2249,7 @@ namespace MVRPlugin {
 
 			try {
 				JSONArray arr = new JSONArray();
+				List<string> seenPackages = new List<string>();
 				int started = 0;
 				long bytes = 0;
 				HubResourceItemDetailUI[] duis = HubDetailUIs();
@@ -2242,9 +2261,10 @@ namespace MVRPlugin {
 					HubResourcePackageUI[] puis = duis[i].GetComponentsInChildren<HubResourcePackageUI>(true);
 					for (int k = 0; k < puis.Length; k++) {
 						HubResourcePackage p = puis[k].connectedItem;
-						if (p == null) {
+						if (p == null || p.Name == null || seenPackages.Contains(p.Name)) {
 							continue;
 						}
+						seenPackages.Add(p.Name);
 						JSONClass j = new JSONClass();
 						j["name"] = p.Name;
 						j["creator"] = p.Creator;
@@ -2263,6 +2283,10 @@ namespace MVRPlugin {
 						}
 						arr.Add(j);
 					}
+				}
+				if (arr.Count == 0) {
+					throw new Exception("no open detail panel for resource " + resourceId
+						+ " - the Hub did not load it, so nothing was downloaded");
 				}
 				data["resourceId"] = resourceId;
 				data["waited"] = settleWaited.ToString("0.0");
@@ -2283,7 +2307,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.1";
+			data["version"] = "0.10.2";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
