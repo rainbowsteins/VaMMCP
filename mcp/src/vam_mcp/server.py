@@ -17,6 +17,11 @@ from .couple import setup_couple as setup_couple_impl
 from .expression import list_expressions as list_expressions_impl
 from .expression import set_expression as set_expression_impl
 from .headlock import lock_head as lock_head_impl
+from .hub import download_resource as download_resource_impl
+from .hub import download_status as download_status_impl
+from .hub import hub_info as hub_info_impl
+from .hub import search_hub as search_hub_impl
+from .hub import wait_for_downloads as wait_for_downloads_impl
 from .paths import vam_root
 from .pose import load_look_keep_pose as load_look_keep_pose_impl
 from .pose import load_pose as load_pose_impl
@@ -386,6 +391,54 @@ def capture_view() -> str:
         data = {"data": data}
     data["previewAbsolute"] = _preview_abs()
     return _dump(data)
+
+
+@mcp.tool()
+def search_hub(
+    query: str,
+    category: str = "",
+    pay_type: str = "Free",
+    sort: str = "download",
+    creator: str = "",
+    limit: int = 20,
+    hide_installed: bool = False,
+) -> str:
+    """Search the VAM Hub through VAM's own built-in browser and return results ranked by download count. VAM does the networking with the user's own Hub session, so nothing here logs in or fetches URLs. category/pay_type/sort are matched loosely against the real chooser values and the call reports back which value it actually set; if a filter did not match, the reply lists the valid choices. Set hide_installed=True to drop resources already in the library. Each result carries a resourceId for download_resource. Opens the Hub panel in VAM, so call capture_view if you want to see it."""
+    return _dump(
+        search_hub_impl(
+            query=query,
+            category=category,
+            pay_type=pay_type,
+            sort=sort,
+            creator=creator,
+            limit=limit,
+            hide_installed=hide_installed,
+        )
+    )
+
+
+@mcp.tool()
+def download_resource(resource_id: str, confirm: bool = False) -> str:
+    """List the packages behind a Hub resource, and with confirm=True download them via VAM. Call it first with confirm=False: that opens the resource and returns the manifest - every package with its size, whether it is a dependency, and whether it is already installed - plus totalSize. Show that to the user and only then call again with confirm=True. Packages flagged notOnHub or canDownload=false cannot be fetched (paid or delisted) and are listed under blocked. Use resource_id from search_hub."""
+    return _dump(download_resource_impl(resource_id=resource_id, confirm=confirm))
+
+
+@mcp.tool()
+def download_status() -> str:
+    """Current Hub download queue: whether VAM is downloading, how many are pending, and per-package state for the open resource."""
+    return _dump(download_status_impl())
+
+
+@mcp.tool()
+def wait_for_downloads(timeout: float = 900.0) -> str:
+    """Block until VAM's Hub download queue drains, then report the final state. Reports observedActive so a queue that was empty the whole time is not mistaken for a completed download."""
+    return _dump(wait_for_downloads_impl(timeout=timeout))
+
+
+@mcp.tool()
+def hub_info() -> str:
+    """Diagnostic. Hub enabled/downloader state plus the real names and allowed values of every HubBrowse filter chooser (category, pay type, sort, creator, tags). Use when a search_hub filter did not take."""
+    return _dump(hub_info_impl())
 
 
 def main() -> None:

@@ -276,7 +276,20 @@ rather than guessing them.
 | `list_morphs` / `set_morphs` | Search the morphs on a Person and set any of them |
 | `list_geometry_options` / `set_geometry_options` | Hair and clothing toggles (`hair:` / `clothing:`) |
 | `save_character` / `list_characters` / `load_character` | The local character library |
+| `search_hub` | Search the VAM Hub through VAM's built-in browser, ranked by download count |
+| `download_resource` | List a resource's packages with sizes, and with `confirm=true` download them |
+| `download_status` / `wait_for_downloads` | Hub download queue state, and block until it drains |
+| `hub_info` | Diagnostic: Hub state plus the real names and values of every filter chooser |
 | `debug_cameras` | Diagnostic: cameras, culling masks, a Person's renderers and layers, geometry params |
+
+### Downloading from the Hub
+
+`search_hub` and `download_resource` drive VAM's own Hub browser — the same one
+behind **File → Online Browser**. VAM does the networking with your session and
+your `enableHubDownloader` preference, so nothing here logs in or fetches URLs
+on its own. Downloading is deliberately two calls: the first returns the package
+list with sizes and which ones you already have, and only a second call with
+`confirm=true` starts the transfer. Plugin **0.10.0+**.
 
 Do not ask the user to click **On** or delete atoms by hand — `set_person_on` / `remove_person` do that.
 

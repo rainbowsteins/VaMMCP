@@ -154,6 +154,28 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `lock_head` | Stop the head following the camera |
 | `get_position` / `move_person` | Read or set a Person's world position and rotation |
 | `setup_couple` | Two looks + paired pose in the current scene |
+| `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
+| `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
+
+## Downloading from the Hub
+
+`search_hub` drives VAM's own Hub browser: VAM does the networking with the
+user's session and their own `enableHubDownloader` preference. Never fetch a
+Hub URL yourself and never sign in on their behalf.
+
+- Results are ranked by download count, so "popular" is the real figure off the
+  card, not a guess. `installed` says it is already in the library.
+- `download_resource` is two-step **on purpose**. Call it with `confirm=false`
+  first: that returns every package behind the resource with its size, which
+  are dependencies, and which are already installed. Show the user that list
+  and the total size, then call again with `confirm=true`.
+- Packages with `canDownload=false` or `notOnHub=true` are paid or delisted.
+  They come back under `blocked`; do not report them as downloaded.
+- After `confirm=true`, call `wait_for_downloads`, then confirm the packages
+  actually landed. `observedActive=false` means the queue was empty every poll,
+  which is *not* proof a download ran.
+- A filter that did not match reports the valid values instead of failing
+  silently; `hub_info` dumps every chooser and its allowed values.
 
 ## If MCP is not connected
 

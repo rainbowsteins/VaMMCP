@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using SimpleJSON;
 using MVR.FileManagementSecure;
+using MVR.Hub;
 
 namespace MVRPlugin {
 	// Session plugin: add under Session Plugins so it survives scene load.
@@ -451,6 +452,36 @@ namespace MVRPlugin {
 
 			if (op == "debug_cameras") {
 				result["data"] = DebugCameras();
+				return result;
+			}
+
+			if (op == "hub_info") {
+				result["data"] = HubInfo();
+				return result;
+			}
+
+			if (op == "hub_status") {
+				result["data"] = HubStatus();
+				return result;
+			}
+
+			if (op == "hub_search") {
+				string sid = "";
+				if (cmd["id"] != null) {
+					sid = cmd["id"].Value;
+				}
+				deferResult = true;
+				SuperController.singleton.StartCoroutine(HubSearchCoroutine(sid, cmd));
+				return result;
+			}
+
+			if (op == "hub_download") {
+				string did = "";
+				if (cmd["id"] != null) {
+					did = cmd["id"].Value;
+				}
+				deferResult = true;
+				SuperController.singleton.StartCoroutine(HubDownloadCoroutine(did, cmd));
 				return result;
 			}
 
@@ -1735,10 +1766,434 @@ namespace MVRPlugin {
 			return data;
 		}
 
+		// ---------------- Hub -------------------------------------------------
+		// VAM does the networking. This only drives HubBrowse, which is a
+		// JSONStorable with public filter setters, and reads the result cards
+		// through HubResourceItemUI.connectedItem - all public, no reflection.
+
+		protected HubBrowse Hub() {
+			HubBrowse hb = HubBrowse.singleton;
+			if (hb == null) {
+				throw new Exception("HubBrowse.singleton is null - this build has no Hub");
+			}
+			return hb;
+		}
+
+		// Result cards are prefab instances parented under the Hub canvas. Walk
+		// from the root so a container we cannot name still matches, then fall
+		// back to a scene-wide search.
+		protected HubResourceItemUI[] HubItemUIs() {
+			HubBrowse hb = Hub();
+			HubResourceItemUI[] found = hb.transform.root.GetComponentsInChildren<HubResourceItemUI>(true);
+			if (found == null || found.Length == 0) {
+				found = UnityEngine.Object.FindObjectsOfType<HubResourceItemUI>();
+			}
+			if (found == null) {
+				found = new HubResourceItemUI[0];
+			}
+			return found;
+		}
+
+		protected HubResourceItemDetailUI[] HubDetailUIs() {
+			HubBrowse hb = Hub();
+			HubResourceItemDetailUI[] found = hb.transform.root.GetComponentsInChildren<HubResourceItemDetailUI>(true);
+			if (found == null || found.Length == 0) {
+				found = UnityEngine.Object.FindObjectsOfType<HubResourceItemDetailUI>();
+			}
+			if (found == null) {
+				found = new HubResourceItemDetailUI[0];
+			}
+			return found;
+		}
+
+		protected bool Lit(GameObject go) {
+			return go != null && go.activeInHierarchy;
+		}
+
+		protected JSONClass HubItemJSON(HubResourceItemUI ui) {
+			HubResourceItem it = ui.connectedItem;
+			if (it == null) {
+				return null;
+			}
+			JSONClass j = new JSONClass();
+			j["resourceId"] = it.ResourceId;
+			j["title"] = it.Title;
+			j["creator"] = it.Creator;
+			j["category"] = it.Category;
+			j["payType"] = it.PayType;
+			j["version"] = it.VersionNumber;
+			j["downloads"] = it.DownloadCount.ToString();
+			j["rating"] = it.Rating.ToString("0.00");
+			j["ratings"] = it.RatingsCount.ToString();
+			j["tagLine"] = it.TagLine;
+			j["updated"] = it.LastUpdateTimestamp.ToString("yyyy-MM-dd");
+			// The indicator objects are the same signals the user reads off a card.
+			j["inLibrary"] = Lit(ui.inLibraryIndicator) ? "true" : "false";
+			j["hubDownloadable"] = Lit(ui.hubDownloadableIndicator) ? "true" : "false";
+			j["hubHosted"] = Lit(ui.hubHostedIndicator) ? "true" : "false";
+			j["updateAvailable"] = Lit(ui.updateAvailableIndicator) ? "true" : "false";
+			if (ui.dependencyCountText != null) {
+				j["dependencies"] = ui.dependencyCountText.text;
+			}
+			return j;
+		}
+
+		// A chooser name is discovered, never guessed: find the registered
+		// JSONStorableStringChooser whose id contains the token, then the choice
+		// containing the wanted word. Reports the choices when nothing matched.
+		protected string SetChooserLike(HubBrowse hb, string idToken, string wantedValue, JSONClass report) {
+			List<string> names = hb.GetStringChooserParamNames();
+			if (names == null) {
+				return null;
+			}
+			for (int i = 0; i < names.Count; i++) {
+				string n = names[i];
+				if (n == null || n.ToLower().IndexOf(idToken.ToLower()) < 0) {
+					continue;
+				}
+				List<string> choices = hb.GetStringChooserJSONParamChoices(n);
+				if (choices == null) {
+					continue;
+				}
+				for (int k = 0; k < choices.Count; k++) {
+					string c = choices[k];
+					if (c != null && c.ToLower().IndexOf(wantedValue.ToLower()) >= 0) {
+						hb.SetStringChooserParamValue(n, c);
+						report[idToken] = n + " = " + c;
+						return c;
+					}
+				}
+				JSONArray arr = new JSONArray();
+				for (int k = 0; k < choices.Count && k < 60; k++) {
+					arr.Add(new JSONData(choices[k]));
+				}
+				report[idToken + "Choices"] = arr;
+			}
+			return null;
+		}
+
+		protected JSONArray StringList(List<string> src) {
+			JSONArray arr = new JSONArray();
+			if (src != null) {
+				for (int i = 0; i < src.Count; i++) {
+					arr.Add(new JSONData(src[i]));
+				}
+			}
+			return arr;
+		}
+
+		protected JSONClass HubInfo() {
+			HubBrowse hb = Hub();
+			JSONClass data = new JSONClass();
+			data["hubEnabled"] = hb.HubEnabled ? "true" : "false";
+			data["isShowing"] = hb.IsShowing ? "true" : "false";
+			data["itemsOnPage"] = HubItemUIs().Length.ToString();
+			HubDownloader hd = HubDownloader.singleton;
+			if (hd != null) {
+				data["downloaderEnabled"] = hd.HubDownloaderEnabled ? "true" : "false";
+			}
+			// Dump the registered params so the client never has to guess a name.
+			JSONClass choosers = new JSONClass();
+			List<string> names = hb.GetStringChooserParamNames();
+			if (names != null) {
+				for (int i = 0; i < names.Count; i++) {
+					List<string> choices = hb.GetStringChooserJSONParamChoices(names[i]);
+					JSONArray arr = new JSONArray();
+					if (choices != null) {
+						for (int k = 0; k < choices.Count && k < 60; k++) {
+							arr.Add(new JSONData(choices[k]));
+						}
+					}
+					choosers[names[i]] = arr;
+				}
+			}
+			data["choosers"] = choosers;
+			data["actions"] = StringList(hb.GetActionNames());
+			data["strings"] = StringList(hb.GetStringParamNames());
+			data["bools"] = StringList(hb.GetBoolParamNames());
+			return data;
+		}
+
+		protected JSONClass HubStatus() {
+			HubBrowse hb = Hub();
+			JSONClass data = new JSONClass();
+			data["isDownloading"] = hb.IsDownloading ? "true" : "false";
+			data["downloadCount"] = hb.DownloadCount.ToString();
+			HubDownloader hd = HubDownloader.singleton;
+			if (hd != null) {
+				data["pending"] = hd.PendingResourceDownloads.ToString();
+			}
+			JSONArray pkgs = new JSONArray();
+			HubResourceItemDetailUI[] duis = HubDetailUIs();
+			for (int i = 0; i < duis.Length; i++) {
+				HubResourcePackageUI[] puis = duis[i].GetComponentsInChildren<HubResourcePackageUI>(true);
+				for (int k = 0; k < puis.Length; k++) {
+					HubResourcePackage p = puis[k].connectedItem;
+					if (p == null) {
+						continue;
+					}
+					JSONClass j = new JSONClass();
+					j["name"] = p.Name;
+					j["downloading"] = p.IsDownloading ? "true" : "false";
+					j["queued"] = p.IsDownloadQueued ? "true" : "false";
+					j["needsDownload"] = p.NeedsDownload ? "true" : "false";
+					j["error"] = p.HadDownloadError ? "true" : "false";
+					pkgs.Add(j);
+				}
+			}
+			data["packages"] = pkgs;
+			return data;
+		}
+
+		protected void WriteDeferred(string id, string op, JSONClass data, string err) {
+			JSONClass result = new JSONClass();
+			result["id"] = id;
+			result["op"] = op;
+			if (err == null) {
+				result["ok"] = "true";
+				result["data"] = data;
+			} else {
+				result["ok"] = "false";
+				result["error"] = err;
+			}
+			SuperController.singleton.SaveJSON(result, resultPath);
+			deferResult = false;
+		}
+
+		// A coroutine cannot use out params, so the settle loop reports through
+		// these two fields. Only ever read right after the coroutine returns.
+		protected float settleWaited;
+		protected int settleCount;
+
+		protected int HubCount(bool packages) {
+			try {
+				if (!packages) {
+					return HubItemUIs().Length;
+				}
+				int n = 0;
+				HubResourceItemDetailUI[] duis = HubDetailUIs();
+				for (int i = 0; i < duis.Length; i++) {
+					n += duis[i].GetComponentsInChildren<HubResourcePackageUI>(true).Length;
+				}
+				return n;
+			}
+			catch {
+				return -1;
+			}
+		}
+
+		// Settle on the result set: there is no public "refresh finished" flag,
+		// so wait until the card count stops changing three checks running.
+		protected IEnumerator SettleCount(bool packages, float wait) {
+			float t = 0f;
+			int stable = 0;
+			int last = -1;
+			while (t < wait) {
+				yield return new WaitForSeconds(0.5f);
+				t += 0.5f;
+				int n = HubCount(packages);
+				if (n == last && n > 0) {
+					stable++;
+					if (stable >= 3) {
+						break;
+					}
+				} else {
+					stable = 0;
+				}
+				last = n;
+			}
+			settleCount = last;
+			settleWaited = t;
+		}
+
+		protected IEnumerator HubSearchCoroutine(string id, JSONClass cmd) {
+			JSONClass data = new JSONClass();
+			JSONClass applied = new JSONClass();
+			string err = null;
+			float wait = 25f;
+			try {
+				HubBrowse hb = Hub();
+				if (!hb.HubEnabled) {
+					hb.HubEnabled = true;
+					applied["enabledHub"] = "true";
+				}
+				if (cmd["waitFor"] != null) {
+					float.TryParse(cmd["waitFor"].Value, out wait);
+				}
+				if (cmd["show"] == null || cmd["show"].Value != "false") {
+					hb.Show();
+				}
+				hb.SearchFilter = cmd["query"] != null ? cmd["query"].Value : "";
+				applied["search"] = hb.SearchFilter;
+				if (cmd["category"] != null && cmd["category"].Value != "") {
+					SetChooserLike(hb, "categor", cmd["category"].Value, applied);
+				}
+				if (cmd["payType"] != null && cmd["payType"].Value != "") {
+					SetChooserLike(hb, "paytype", cmd["payType"].Value, applied);
+				}
+				if (cmd["sort"] != null && cmd["sort"].Value != "") {
+					SetChooserLike(hb, "sort", cmd["sort"].Value, applied);
+				}
+				if (cmd["creator"] != null && cmd["creator"].Value != "") {
+					SetChooserLike(hb, "creator", cmd["creator"].Value, applied);
+				}
+				hb.RefreshResources();
+			}
+			catch (Exception e) {
+				err = e.Message;
+			}
+			if (err != null) {
+				WriteDeferred(id, "hub_search", null, err);
+				yield break;
+			}
+
+			yield return SuperController.singleton.StartCoroutine(SettleCount(false, wait));
+
+			try {
+				int limit = 20;
+				if (cmd["limit"] != null) {
+					int.TryParse(cmd["limit"].Value, out limit);
+				}
+				HubResourceItemUI[] uis = HubItemUIs();
+				List<JSONClass> rows = new List<JSONClass>();
+				for (int i = 0; i < uis.Length; i++) {
+					JSONClass j = HubItemJSON(uis[i]);
+					if (j != null) {
+						rows.Add(j);
+					}
+				}
+				// Sort by downloads so "popular" means popular even if the Hub's
+				// own ordering could not be set.
+				for (int i = 0; i < rows.Count; i++) {
+					int best = i;
+					int bestN = 0;
+					int.TryParse(rows[i]["downloads"].Value, out bestN);
+					for (int k = i + 1; k < rows.Count; k++) {
+						int n = 0;
+						int.TryParse(rows[k]["downloads"].Value, out n);
+						if (n > bestN) {
+							best = k;
+							bestN = n;
+						}
+					}
+					if (best != i) {
+						JSONClass tmp = rows[i];
+						rows[i] = rows[best];
+						rows[best] = tmp;
+					}
+				}
+				JSONArray arr = new JSONArray();
+				for (int i = 0; i < rows.Count && i < limit; i++) {
+					arr.Add(rows[i]);
+				}
+				data["applied"] = applied;
+				data["waited"] = settleWaited.ToString("0.0");
+				data["matched"] = rows.Count.ToString();
+				data["results"] = arr;
+			}
+			catch (Exception e2) {
+				err = e2.Message;
+			}
+			WriteDeferred(id, "hub_search", data, err);
+		}
+
+		protected IEnumerator HubDownloadCoroutine(string id, JSONClass cmd) {
+			JSONClass data = new JSONClass();
+			string err = null;
+			string resourceId = cmd["resourceId"] != null ? cmd["resourceId"].Value : "";
+			bool confirm = cmd["confirm"] != null && cmd["confirm"].Value == "true";
+			float wait = 30f;
+			if (cmd["waitFor"] != null) {
+				float.TryParse(cmd["waitFor"].Value, out wait);
+			}
+			if (resourceId == "") {
+				WriteDeferred(id, "hub_download", null, "missing resourceId");
+				yield break;
+			}
+
+			// Opening the detail is what makes VAM fetch the package list.
+			try {
+				HubBrowse hb = Hub();
+				hb.Show();
+				bool opened = false;
+				HubResourceItemUI[] uis = HubItemUIs();
+				for (int i = 0; i < uis.Length; i++) {
+					HubResourceItem it = uis[i].connectedItem;
+					if (it != null && it.ResourceId == resourceId) {
+						it.OpenDetail();
+						opened = true;
+						break;
+					}
+				}
+				if (!opened) {
+					hb.OpenDetail(resourceId, true);
+				}
+			}
+			catch (Exception e) {
+				err = e.Message;
+			}
+			if (err != null) {
+				WriteDeferred(id, "hub_download", null, err);
+				yield break;
+			}
+
+			yield return SuperController.singleton.StartCoroutine(SettleCount(true, wait));
+
+			try {
+				JSONArray arr = new JSONArray();
+				int started = 0;
+				long bytes = 0;
+				HubResourceItemDetailUI[] duis = HubDetailUIs();
+				for (int i = 0; i < duis.Length; i++) {
+					HubResourceItemDetail det = duis[i].connectedItem;
+					if (det == null || det.ResourceId != resourceId) {
+						continue;
+					}
+					HubResourcePackageUI[] puis = duis[i].GetComponentsInChildren<HubResourcePackageUI>(true);
+					for (int k = 0; k < puis.Length; k++) {
+						HubResourcePackage p = puis[k].connectedItem;
+						if (p == null) {
+							continue;
+						}
+						JSONClass j = new JSONClass();
+						j["name"] = p.Name;
+						j["creator"] = p.Creator;
+						j["license"] = p.LicenseType;
+						j["fileSize"] = p.FileSize.ToString();
+						j["needsDownload"] = p.NeedsDownload ? "true" : "false";
+						j["canBeDownloaded"] = p.CanBeDownloaded ? "true" : "false";
+						j["isDependency"] = Lit(puis[k].isDependencyIndicator) ? "true" : "false";
+						j["alreadyHave"] = Lit(puis[k].alreadyHaveIndicator) ? "true" : "false";
+						j["notOnHub"] = Lit(puis[k].notOnHubIndicator) ? "true" : "false";
+						if (confirm && p.CanBeDownloaded && p.NeedsDownload) {
+							p.Download();
+							started++;
+							bytes += p.FileSize;
+							j["started"] = "true";
+						}
+						arr.Add(j);
+					}
+				}
+				data["resourceId"] = resourceId;
+				data["waited"] = settleWaited.ToString("0.0");
+				data["confirmed"] = confirm ? "true" : "false";
+				data["packages"] = arr;
+				data["started"] = started.ToString();
+				data["startedBytes"] = bytes.ToString();
+				if (!confirm) {
+					data["note"] = "dry run: pass confirm=true to actually download";
+				}
+			}
+			catch (Exception e3) {
+				err = e3.Message;
+			}
+			WriteDeferred(id, "hub_download", data, err);
+		}
+
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.9.0";
+			data["version"] = "0.10.0";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

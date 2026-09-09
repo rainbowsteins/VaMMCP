@@ -172,7 +172,21 @@ VAM_ROOT = 'VAM_ROOT'
 | `list_morphs` / `set_morphs` | 搜索并设置任意 morph |
 | `list_geometry_options` / `set_geometry_options` | 发型 / 服装开关 |
 | `save_character` / `list_characters` / `load_character` | 本地角色库 |
+| `search_hub` | 用 VAM 内建的 Hub 浏览器搜索资源，按下载量排序 |
+| `download_resource` | 列出资源包含的包与体积；`confirm=true` 时才真正下载 |
+| `download_status` / `wait_for_downloads` | 查看下载队列 / 等待队列清空 |
+| `hub_info` | 诊断用：Hub 状态，以及各筛选器的真实名称与可选值 |
 | `debug_cameras` | 诊断用：相机、剔除掩码、人物渲染器与层、geometry 参数 |
+
+## 从 Hub 下载资源
+
+`search_hub` / `download_resource` 驱动的是 VAM 自带的 Hub 浏览器，也就是
+**File → Online Browser** 背后的那个。联网由 VAM 用你自己的登录态和
+`enableHubDownloader` 设置完成，这边不会替你登录、也不会自己去抓网页。
+
+下载刻意分两步：第一次调用（`confirm=false`）只返回这个资源包含哪些包、
+各多大、哪些是依赖、哪些你已经装了；确认之后再用 `confirm=true` 才真正下载。
+标记为 `blocked` 的是付费或已下架的包，VAM 拿不到。需要插件 **0.10.0+**。
 
 ## 常见问题
 
