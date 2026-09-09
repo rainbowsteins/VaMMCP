@@ -99,6 +99,15 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   posed and only the outfit or makeup should change. Do not extend that filter to every id
   ending in "Control" - `BreastControl`, `GluteControl`, `EyelidControl`, `JawControl` and the
   finger controls are appearance, and stripping them loses real look data.
+- To choose hair, clothing or shoes, read the preview image the creator shipped: a `.vam` almost
+  always has a `.jpg` of the same name beside it inside the package. Extract those and compare
+  them. Do not put candidates on the character and render them to compare - it took two failed
+  attempts to pick one fringe out of five that way, while `VaMChan/Bangs/bangs 0N.jpg` showed all
+  five at once, shot straight on by the creator. Names do not tell you the shape.
+- When toggling hair or clothing off, use the `hair:`/`clothing:`-prefixed name from
+  `list_geometry_options`. `geometry.hair` reports a raw item path, and passing that lands the
+  toggle in the result's `failed` array. Confirm the change against `activeInPrefix` afterwards
+  rather than trusting the call: five fringes silently stacked up because nothing checked.
 - A clothing item can hold several materials (`NoOC:SailorLingerieMaterialTop` / `...Skirt` /
   `...Socks`). To keep part of an outfit and drop the rest, set `hideMaterial` on the material
   through a vap rather than hunting for a different item.
