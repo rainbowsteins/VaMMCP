@@ -104,6 +104,10 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   them. Do not put candidates on the character and render them to compare - it took two failed
   attempts to pick one fringe out of five that way, while `VaMChan/Bangs/bangs 0N.jpg` showed all
   five at once, shot straight on by the creator. Names do not tell you the shape.
+- `list_geometry_options` is capped by the plugin, so a wide listing drops rows. Pass a `query` -
+  it filters the full list before the cap - and check `truncated` in the result. Listing everything
+  and searching the reply once made a freshly installed item look absent when it was there all
+  along, 400 rows into a list of 526.
 - When toggling hair or clothing off, use the `hair:`/`clothing:`-prefixed name from
   `list_geometry_options`. `geometry.hair` reports a raw item path, and passing that lands the
   toggle in the result's `failed` array. Confirm the change against `activeInPrefix` afterwards

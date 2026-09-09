@@ -315,12 +315,25 @@ def set_morphs(morphs: list[dict[str, Any]], person: str = "") -> str:
 
 @mcp.tool()
 def list_geometry_options(prefix: str = "hair:", query: str = "", limit: int = 80, person: str = "") -> str:
-    """List the hair and clothing items available on a Person. These are bool toggles named "hair:<item>" / "clothing:<item>". prefix filters by kind, query filters by substring (twintail, pigtail, skirt...). "activeInPrefix" tells you what is currently worn. person is an atom uid; empty uses the first Person."""
+    """List the hair and clothing items available on a Person. These are bool toggles named "hair:<item>" / "clothing:<item>". prefix filters by kind, query filters by substring (twintail, pigtail, skirt...). "activeInPrefix" tells you what is currently worn. The plugin caps how many rows it returns, so pass a query rather than paging through everything: the query is applied to the full list before the cap, and "truncated" in the result says when rows were left out. person is an atom uid; empty uses the first Person."""
     args: dict[str, Any] = {"prefix": prefix, "query": query, "limit": limit}
     if person:
         args["person"] = person
     result = bridge.call("list_geometry_options", timeout=30.0, **args)
-    return _dump(result.get("data") or result)
+    data = result.get("data") or result
+    if isinstance(data, dict):
+        try:
+            matched = int(data.get("matched", 0))
+            returned = int(data.get("returned", 0))
+        except (TypeError, ValueError):
+            matched = returned = 0
+        if matched > returned:
+            # The plugin clamps its own limit, so a wide listing silently loses
+            # rows - which is how a freshly installed item looked absent.
+            data["truncated"] = True
+            data["note"] = (f"{matched} items matched but only {returned} were returned. "
+                            "Pass a query to search the full list instead of listing everything.")
+    return _dump(data)
 
 
 @mcp.tool()
