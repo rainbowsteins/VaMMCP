@@ -82,6 +82,14 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   clothing loading, so materials owned by those items do not exist yet during a single pass and get
   skipped: a character loaded into a freshly started VAM came back with default hair and eye colour.
   Do not "simplify" that second pass away.
+- Makeup goes through the Chokaphi DecalMaker plugin: its `DecalHead` array is the face decal
+  stack, and each entry is an array holding one layer object (`tp` texture, `sv` alpha, `col`
+  "r,g,b", `tran`, `scale`). It is **additive** - applying a stack appends to whatever is already
+  there. Call `Clear All Frames` through `call_action` first, or layers pile up and the faint
+  alpha halo every eyeshadow texture carries builds into a visible rectangle on the cheek.
+  `load_character` does this reset for you.
+- A button on a storable is a `JSONStorableAction`; `RestoreFromJSON` never touches one, so a vap
+  cannot press it. Use `list_actions` to find it and `call_action` to press it.
 - Ethnicity is not a morph. There is no general "Asian" slider; start from an installed look of the
   right ethnicity. Say so rather than promising to shape a face from scratch.
 - To set something no tool covers (hair colour, materials), write a `.vap` with

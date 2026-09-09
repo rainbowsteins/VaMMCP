@@ -33,6 +33,20 @@ INDEX_NAME = "characters.json"
 _KEEP_EXACT = {"geometry", "skin", "eyes", "rescaleobject"}
 _KEEP_SUBSTRINGS = ("material", "hair", "clothing", "scalp")
 
+# Plugin storables that carry appearance rather than behaviour, matched on the
+# id suffix so the "plugin#<n>_" index a plugin happens to get does not matter.
+# DecalMaker identifies itself the same way. Physics and animation plugins are
+# deliberately absent: their state is not part of a look.
+#
+# The value is the plugin's own reset action, needed because these plugins are
+# additive: restoring DecalMaker's layers appends them, so loading a character
+# twice would stack the makeup twice and darken the halo each texture carries.
+# Calling the reset first makes a load idempotent.
+_APPEARANCE_PLUGINS = {
+    "_vam_decal_maker_2.core": "Clear All Frames",
+    "_vam_decal_maker.decal_maker": "Clear All Frames",
+}
+
 
 def _lib_dir() -> Path:
     path = vam_root() / LIB_REL.replace("/", "\\")
@@ -50,8 +64,10 @@ def _is_appearance(sid: str) -> bool:
     low = (sid or "").lower()
     if not low:
         return False
-    if "control" in low or low.startswith("plugin"):
+    if "control" in low:
         return False
+    if low.startswith("plugin"):
+        return any(low.endswith(suffix) for suffix in _APPEARANCE_PLUGINS)
     if low in _KEEP_EXACT:
         return True
     if low.endswith("sim"):
@@ -209,6 +225,24 @@ def resolve_character(name: str) -> dict[str, Any]:
     }
 
 
+def _reset_appearance_plugins(person: str = "") -> list[str]:
+    """Clear additive appearance plugins so a load does not stack on the last."""
+    done: list[str] = []
+    for suffix, action in _APPEARANCE_PLUGINS.items():
+        if not action:
+            continue
+        args: dict[str, Any] = {"storable": suffix, "action": action}
+        if person:
+            args["person"] = person
+        try:
+            bridge.call("call_action", timeout=30.0, **args)
+            done.append(f"{suffix} -> {action}")
+        except Exception:
+            # The plugin simply is not loaded on this Person; that is fine.
+            continue
+    return done
+
+
 def _needs_second_pass(storable: dict[str, Any]) -> bool:
     """Storables that belong to an asynchronously loaded hair or clothing item.
 
@@ -223,6 +257,10 @@ def _needs_second_pass(storable: dict[str, Any]) -> bool:
         return False
     if sid.endswith("sim") or "material" in sid or "scalp" in sid:
         return True
+    # Plugin storables are deliberately excluded: an additive one would apply
+    # its whole payload a second time. They come through on the first pass.
+    if sid.startswith("plugin"):
+        return False
     return any("olor" in key for key in storable if key != "id")
 
 
@@ -233,11 +271,15 @@ def load_character(name: str, person: str = "") -> dict[str, Any]:
     args: dict[str, Any] = {"path": found["path"]}
     if person:
         args["person"] = person
+
+    reset = _reset_appearance_plugins(person)
     result = bridge.call("load_look", timeout=60.0, **args)
     data = result.get("data") or result
     if not isinstance(data, dict):
         data = {"data": data}
     data["character"] = found["name"]
+    if reset:
+        data["resetPlugins"] = reset
     if found.get("entry"):
         data["entry"] = found["entry"]
 

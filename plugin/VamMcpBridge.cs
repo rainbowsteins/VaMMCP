@@ -417,6 +417,22 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "call_action") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = CallAction(person, cmd);
+				return result;
+			}
+
+			if (op == "list_actions") {
+				Atom person = RequiredPerson(cmd);
+				string query = "";
+				if (cmd["query"] != null) {
+					query = cmd["query"].Value;
+				}
+				result["data"] = ListActions(person, query);
+				return result;
+			}
+
 			if (op == "get_appearance") {
 				Atom person = RequiredPerson(cmd);
 				result["data"] = GetAppearance(person);
@@ -1510,6 +1526,109 @@ namespace MVRPlugin {
 		// this avoids VAM's "plugin wants to save json" prompt, and which storables
 		// count as appearance becomes a server-side decision that needs no reload.
 		// Controllers and plugins are dropped here because those are pose, not looks.
+		// Buttons on a storable are JSONStorableAction, which RestoreFromJSON never
+		// touches - plugins commonly mark them isStorable=false. DecalMaker's
+		// "Clear All Frames" is one, and without it its layers only ever accumulate.
+		protected JSONClass CallAction(Atom person, JSONClass cmd) {
+			string sid = "";
+			if (cmd["storable"] != null) {
+				sid = cmd["storable"].Value;
+			}
+			string action = "";
+			if (cmd["action"] != null) {
+				action = cmd["action"].Value;
+			}
+			if (sid == null || sid == "" || action == null || action == "") {
+				throw new Exception("call_action needs storable and action");
+			}
+
+			JSONStorable storable = FindStorable(person, sid);
+			if (storable == null) {
+				throw new Exception("storable not found on " + person.uid + ": " + sid);
+			}
+			JSONStorableAction target = storable.GetAction(action);
+			if (target == null) {
+				throw new Exception("no action named " + action + " on " + storable.storeId);
+			}
+			target.actionCallback();
+
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["storable"] = storable.storeId;
+			data["action"] = action;
+			data["called"] = "true";
+			return data;
+		}
+
+		// Exact id first, then a suffix match, because a plugin's storable is
+		// "plugin#<n>_Namespace.Class" and the index shifts with load order.
+		protected JSONStorable FindStorable(Atom person, string sid) {
+			JSONStorable exact = person.GetStorableByID(sid);
+			if (exact != null) {
+				return exact;
+			}
+			string want = sid.ToLower();
+			foreach (string candidate in person.GetStorableIDs()) {
+				if (candidate == null) {
+					continue;
+				}
+				if (candidate.ToLower().EndsWith(want)) {
+					return person.GetStorableByID(candidate);
+				}
+			}
+			return null;
+		}
+
+		protected JSONClass ListActions(Atom person, string query) {
+			string q = "";
+			if (query != null) {
+				q = query.ToLower();
+			}
+			JSONArray rows = new JSONArray();
+			foreach (string sid in person.GetStorableIDs()) {
+				if (sid == null) {
+					continue;
+				}
+				JSONStorable storable = person.GetStorableByID(sid);
+				if (storable == null) {
+					continue;
+				}
+				List<string> actions = null;
+				try {
+					actions = storable.GetActionNames();
+				}
+				catch {
+					continue;
+				}
+				if (actions == null) {
+					continue;
+				}
+				foreach (string name in actions) {
+					if (name == null) {
+						continue;
+					}
+					if (q != "" && sid.ToLower().IndexOf(q) < 0 && name.ToLower().IndexOf(q) < 0) {
+						continue;
+					}
+					JSONClass row = new JSONClass();
+					row["storable"] = sid;
+					row["action"] = name;
+					rows.Add(row);
+					if (rows.Count >= 200) {
+						break;
+					}
+				}
+				if (rows.Count >= 200) {
+					break;
+				}
+			}
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["count"] = rows.Count.ToString();
+			data["actions"] = rows;
+			return data;
+		}
+
 		protected JSONClass GetAppearance(Atom person) {
 			JSONArray storables = new JSONArray();
 			JSONArray skipped = new JSONArray();
@@ -1518,7 +1637,10 @@ namespace MVRPlugin {
 					continue;
 				}
 				string l = sid.ToLower();
-				if (l.IndexOf("control") >= 0 || l.StartsWith("plugin") || l.IndexOf("animation") >= 0) {
+				// Plugin storables are handed over too: some of them hold appearance,
+				// DecalMaker's makeup layers being the case in point. Which ones count
+				// is the server's call, so adding another one needs no recompile.
+				if (l.IndexOf("control") >= 0 || l.IndexOf("animation") >= 0) {
 					skipped.Add(sid);
 					continue;
 				}
@@ -1616,7 +1738,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.8.0";
+			data["version"] = "0.9.0";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
