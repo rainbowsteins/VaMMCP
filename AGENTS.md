@@ -78,6 +78,10 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   `set_geometry_options`, checking `capture_view` between steps, and finish with
   `save_character(name, description)`. Report the saved name to the user; that name is how they ask
   for the character next time. Never guess a morph or hair name — `list_*` gives the real one.
+- `load_character` restores in two passes on purpose. A preset's `geometry` starts the hair and
+  clothing loading, so materials owned by those items do not exist yet during a single pass and get
+  skipped: a character loaded into a freshly started VAM came back with default hair and eye colour.
+  Do not "simplify" that second pass away.
 - Ethnicity is not a morph. There is no general "Asian" slider; start from an installed look of the
   right ethnicity. Say so rather than promising to shape a face from scratch.
 - To set something no tool covers (hair colour, materials), write a `.vap` with

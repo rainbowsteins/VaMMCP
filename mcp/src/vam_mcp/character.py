@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -208,6 +209,23 @@ def resolve_character(name: str) -> dict[str, Any]:
     }
 
 
+def _needs_second_pass(storable: dict[str, Any]) -> bool:
+    """Storables that belong to an asynchronously loaded hair or clothing item.
+
+    The plugin restores a preset in one pass. Applying `geometry` starts the
+    hair and clothing loads, so a storable owned by one of those items does not
+    exist yet when the same pass reaches it, and gets skipped without a word.
+    Hair colour lives on exactly such a storable, which is why a character
+    loaded into a fresh VAM came back with default hair.
+    """
+    sid = str(storable.get("id") or "").lower()
+    if not sid:
+        return False
+    if sid.endswith("sim") or "material" in sid or "scalp" in sid:
+        return True
+    return any("olor" in key for key in storable if key != "id")
+
+
 def load_character(name: str, person: str = "") -> dict[str, Any]:
     found = resolve_character(name)
     if not found.get("ok"):
@@ -222,4 +240,26 @@ def load_character(name: str, person: str = "") -> dict[str, Any]:
     data["character"] = found["name"]
     if found.get("entry"):
         data["entry"] = found["entry"]
+
+    # Second pass: now that the items exist, apply their materials again.
+    try:
+        doc = json.loads((vam_root() / found["path"].replace("/", "\\")).read_text(encoding="utf-8"))
+        subset = [st for st in doc.get("storables") or []
+                  if isinstance(st, dict) and _needs_second_pass(st)]
+    except (OSError, json.JSONDecodeError, KeyError):
+        subset = []
+    if subset:
+        time.sleep(3.0)
+        tmp = _lib_dir() / "_restore.vap"
+        tmp.write_text(json.dumps(
+            {"setUnlistedParamsToDefault": "false", "storables": subset},
+            ensure_ascii=False), encoding="utf-8")
+        again: dict[str, Any] = {"path": f"{LIB_REL}/_restore.vap"}
+        if person:
+            again["person"] = person
+        try:
+            bridge.call("load_look", timeout=60.0, **again)
+            data["secondPass"] = [st.get("id") for st in subset]
+        except Exception as exc:
+            data["secondPassError"] = str(exc)
     return data
