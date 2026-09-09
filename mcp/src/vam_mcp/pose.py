@@ -26,6 +26,11 @@ LOOK_TEMP_REL = "Custom/Atom/Person/Appearance/Preset_VamMcp_LookNoPose.vap"
 # pose, and left the body half-posed.
 _NOT_POSE_EXACT = {"geometry", "skin", "eyes", "rescaleobject"}
 _NOT_POSE_TOKENS = ("material", "scalp", "clothing")
+# A worn item registers its own storables, and several of them end in "Control"
+# without being controllers: WrapControl holds surfaceOffset and smoothing,
+# ItemControl holds the fit flags. Dropping those from a look leaves a garment
+# fitted with defaults instead of the creator's numbers.
+_ITEM_CONTROL_SUFFIXES = ("wrapcontrol", "itemcontrol", "itemdeleter", "itemreloader")
 
 
 def is_pose_storable(sid: str) -> bool:
@@ -33,6 +38,9 @@ def is_pose_storable(sid: str) -> bool:
     if not low:
         return False
     if low.startswith("plugin"):
+        return False
+    # a clothing item's own fit storables are not controllers
+    if low.endswith(_ITEM_CONTROL_SUFFIXES):
         return False
     # controllers are pose even when their name mentions hair
     if low.endswith("control"):
@@ -69,6 +77,8 @@ def is_body_pose_storable(sid: str) -> bool:
         return False
     # Bone names are explicit, so they settle it before the keyword pass:
     # LGlute is a rigidbody transform even though GluteControl is a look setting.
+    if low.endswith(_ITEM_CONTROL_SUFFIXES):
+        return False
     if low in _BONES:
         return True
     if any(token in low for token in _NOT_BODY):
