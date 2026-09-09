@@ -110,8 +110,14 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   along, 400 rows into a list of 526.
 - When toggling hair or clothing off, use the `hair:`/`clothing:`-prefixed name from
   `list_geometry_options`. `geometry.hair` reports a raw item path, and passing that lands the
-  toggle in the result's `failed` array. Confirm the change against `activeInPrefix` afterwards
-  rather than trusting the call: five fringes silently stacked up because nothing checked.
+  toggle in the result's `failed` array, now with a `didYouMean` naming the real option. Confirm
+  the change against `activeInPrefix` afterwards rather than trusting the call: five fringes
+  silently stacked up because nothing checked, and before plugin 0.10.3 an unknown name was
+  reported as *applied* because VAM's setter no-ops without raising.
+- A material param that reads back absent is ambiguous: `GetJSON()` only serialises values that
+  differ from the item's defaults, so "no value" means either not-applied or applied-and-default.
+  A red outsole looked like a failed load for exactly that reason. Settle it by comparing the
+  creator's other presets, or by writing an obviously wrong colour and checking that one appears.
 - A clothing item can hold several materials (`NoOC:SailorLingerieMaterialTop` / `...Skirt` /
   `...Socks`). To keep part of an outfit and drop the rest, set `hideMaterial` on the material
   through a vap rather than hunting for a different item.

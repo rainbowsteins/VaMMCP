@@ -1452,6 +1452,32 @@ namespace MVRPlugin {
 			return data;
 		}
 
+		// The usual mistake is a missing "hair:" / "clothing:" prefix, so look for
+		// a registered name that ends with what was asked for.
+		protected string SuggestOptionName(JSONStorable geo, string wanted) {
+			if (wanted == null || wanted == "") {
+				return "";
+			}
+			string low = wanted.ToLower();
+			List<string> names = geo.GetBoolParamNames();
+			if (names == null) {
+				return "";
+			}
+			for (int i = 0; i < names.Count; i++) {
+				string n = names[i];
+				if (n != null && n.ToLower().EndsWith(low)) {
+					return n;
+				}
+			}
+			for (int i = 0; i < names.Count; i++) {
+				string n = names[i];
+				if (n != null && n.ToLower().IndexOf(low) >= 0) {
+					return n;
+				}
+			}
+			return "";
+		}
+
 		protected JSONClass SetGeometryOptions(Atom person, JSONClass cmd) {
 			JSONStorable geo = person.GetStorableByID("geometry");
 			if (geo == null) {
@@ -1505,7 +1531,31 @@ namespace MVRPlugin {
 						on = row["on"].AsBool;
 					}
 					try {
+						// SetBoolParamValue is silent about a name that does not
+						// exist, so an unknown option would otherwise report as
+						// applied and the item would quietly stay as it was.
+						if (!geo.IsBoolJSONParam(name)) {
+							JSONClass bad = new JSONClass();
+							bad["name"] = name;
+							bad["error"] = "no such option";
+							string hint = SuggestOptionName(geo, name);
+							if (hint != "") {
+								bad["didYouMean"] = hint;
+							}
+							failed.Add(bad);
+							continue;
+						}
 						geo.SetBoolParamValue(name, on);
+						bool actual = geo.GetBoolParamValue(name);
+						if (actual != on) {
+							JSONClass bad = new JSONClass();
+							bad["name"] = name;
+							bad["error"] = "the toggle did not take";
+							bad["wanted"] = Bool(on);
+							bad["actual"] = Bool(actual);
+							failed.Add(bad);
+							continue;
+						}
 						JSONClass done = new JSONClass();
 						done["name"] = name;
 						done["on"] = Bool(on);
@@ -2307,7 +2357,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.2";
+			data["version"] = "0.10.3";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

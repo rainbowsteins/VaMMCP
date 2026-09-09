@@ -213,7 +213,7 @@ VAM_ROOT = 'VAM_ROOT'
 - `load_scene` 在资源加载完成前就返回，紧接着截的图可能是加载画面，需要稍后重截。
 - `list_persons` 的 `gender` 是按角色名猜的。名字看不出性别的男性角色会被判成女性，可能导致 `setup_couple` 把两人的角色搞反。
 - **挑发型/服装/鞋子先看素材包自带的预览图** —— `.vam` 旁边通常有同名 `.jpg`，是作者在标准机位下渲染的。把它们抽出来对比，不要在场景里逐个穿戴现渲：那样受镜头位置影响、容易切歪，而且发型的名字看不出形状。
-- 关闭发型/服装要用 `list_geometry_options` 返回的带 `hair:` / `clothing:` 前缀的开关名。`geometry.hair` 里的 `id` 是裸路径，传它会落进返回值的 `failed` 数组。改完之后回读 `activeInPrefix` 验证，不要只信调用本身的返回。
+- 关闭发型/服装要用 `list_geometry_options` 返回的带 `hair:` / `clothing:` 前缀的开关名。`geometry.hair` 里的 `id` 是裸路径，传它会落进返回值的 `failed` 数组（并附 `didYouMean` 指出真名）。改完之后回读 `activeInPrefix` 验证，不要只信调用本身的返回：插件 0.10.3 之前，名字不存在时 VAM 的 setter 会静默返回，错名字反而被报成 `applied`。
 - 做原创角色只能组合已装素材。**族裔不是滑块** —— VAM 没有通用的"亚洲"morph（全库只有一个 `Eyelids asian`），必须从一个已安装的对应族裔 Look 出发再调整。
 - 如果人物身上加载了 `TittyMagic`，`Breasts Small` 会被它归零。可靠的旋钮是 `Flat Chested`。
 - 发色在名为 `<发型internalId>Sim` 的 storable 上，参数是 `rootColor` / `tipColor`（HSV），不是 morph。
