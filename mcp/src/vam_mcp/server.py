@@ -18,6 +18,7 @@ from .expression import list_expressions as list_expressions_impl
 from .expression import set_expression as set_expression_impl
 from .headlock import lock_head as lock_head_impl
 from .paths import vam_root
+from .pose import load_look_keep_pose as load_look_keep_pose_impl
 from .pose import load_pose as load_pose_impl
 
 mcp = MCPServer(
@@ -180,8 +181,8 @@ def load_scene(path: str, merge: bool = False) -> str:
 
 
 @mcp.tool()
-def load_look(path: str, person: str = "") -> str:
-    """Load an appearance/look preset onto a Person. person is the atom uid from list_persons; empty uses the first Person."""
+def load_look(path: str, person: str = "", keep_pose: bool = False) -> str:
+    """Load an appearance/look preset onto a Person. person is the atom uid from list_persons; empty uses the first Person. Most third-party looks also ship a pose, and applying one moves and re-poses the character; pass keep_pose=True to apply only the appearance and leave the current pose alone, which is what you want when swapping outfits or makeup between shots of a posed character."""
     if path.lower().endswith(".json"):
         return _dump(
             {
@@ -193,6 +194,8 @@ def load_look(path: str, person: str = "") -> str:
                 "path": path,
             }
         )
+    if keep_pose:
+        return _dump(_capture_after(load_look_keep_pose_impl(path=path, person=person)))
     args: dict[str, Any] = {"path": path}
     if person:
         args["person"] = person

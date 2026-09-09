@@ -94,6 +94,11 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   vamX's `_POSE LIBRARY` entries carry a `geometry` storable, and applying one wholesale
   replaced a built character's face, hair and clothing. What gets dropped is reported;
   `include_appearance=true` opts back in when the preset's look is genuinely wanted.
+- `load_look` takes the preset's pose too, because most third-party looks ship one: 56 of the 78
+  installed here carry skeleton controllers. Pass `keep_pose=true` when the character is already
+  posed and only the outfit or makeup should change. Do not extend that filter to every id
+  ending in "Control" - `BreastControl`, `GluteControl`, `EyelidControl`, `JawControl` and the
+  finger controls are appearance, and stripping them loses real look data.
 - A clothing item can hold several materials (`NoOC:SailorLingerieMaterialTop` / `...Skirt` /
   `...Socks`). To keep part of an outfit and drop the rest, set `hideMaterial` on the material
   through a vap rather than hunting for a different item.

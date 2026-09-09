@@ -15,7 +15,7 @@ Current pieces:
 | Piece | Version |
 | --- | --- |
 | Session plugin `VamMcpBridge` | 0.9.0 |
-| Python package `vam-mcp` | 0.8.0 |
+| Python package `vam-mcp` | 0.9.0 |
 
 ## How it works
 
@@ -266,7 +266,7 @@ rather than guessing them.
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, or show/hide a Person |
 | `capture_view` | Save the VAM window to `Saves/PluginData/vam-mcp/preview.png` |
-| `list_looks` / `load_look` | Search and apply an appearance preset |
+| `list_looks` / `load_look` | Search and apply an appearance preset (`keep_pose=true` leaves the current pose alone) |
 | `list_clothing` / `load_clothing` | Search and apply a clothing preset |
 | `list_poses` / `load_pose` | Search and apply a pose. Only pose storables are applied, so a preset that also carries a look cannot overwrite the character |
 | `list_expressions` / `set_expression` | List aliases / live face morphs, then set a face (`smile`, `neutral`, `surprise`, …) |
