@@ -78,6 +78,10 @@ _DRIVER_PLUGINS = (
 # additive: restoring DecalMaker's layers appends them, so loading a character
 # twice would stack the makeup twice and darken the halo each texture carries.
 # Calling the reset first makes a load idempotent.
+#
+# Each reset is only sent once _has_plugin_action confirms the storable is
+# really on the atom: this dict lists every DecalMaker build whose ids have been
+# seen, and only the one actually loaded can answer.
 _APPEARANCE_PLUGINS = {
     "_vam_decal_maker_2.core": "Clear All Frames",
     "_vam_decal_maker.decal_maker": "Clear All Frames",
@@ -271,11 +275,50 @@ def resolve_character(name: str) -> dict[str, Any]:
     }
 
 
+def _has_plugin_action(suffix: str, action: str, person: str = "") -> bool | None:
+    """Is `action` on the storable whose id ends in `suffix`?
+
+    True when list_actions named it, False when the atom answered and does not
+    have it, and None when the question could not be asked at all (a bridge too
+    old to know list_actions). The caller treats None as "assume it is there",
+    so an old bridge keeps its previous unconditional behaviour instead of
+    silently losing the reset.
+
+    The query is filtered server-side against the real storable id, so the
+    "plugin#<n>_" index a plugin happens to get does not matter. Asking the
+    atom this way is far cheaper than get_appearance, which dumps every
+    storable's JSON to answer a yes/no question.
+    """
+    args: dict[str, Any] = {"query": suffix}
+    if person:
+        args["person"] = person
+    try:
+        data = bridge.call("list_actions", timeout=30.0, **args).get("data") or {}
+    except Exception:
+        return None
+    want = action.lower()
+    for row in data.get("actions") or []:
+        if str(row.get("action") or "").lower() != want:
+            continue
+        if suffix in str(row.get("storable") or "").lower():
+            return True
+    return False
+
+
 def _reset_appearance_plugins(person: str = "") -> list[str]:
-    """Clear additive appearance plugins so a load does not stack on the last."""
+    """Clear additive appearance plugins so a load does not stack on the last.
+
+    Only plugins that are actually on the atom are asked. DecalMaker's reset is
+    the one that matters, and a character that carries no DecalMaker - which is
+    most of them - used to be sent two calls that were certain to fail: the
+    plugin threw "storable not found", the bridge logged a stack trace, and the
+    load carried on. Two guaranteed failures per load, for nothing.
+    """
     done: list[str] = []
     for suffix, action in _APPEARANCE_PLUGINS.items():
         if not action:
+            continue
+        if _has_plugin_action(suffix, action, person) is False:
             continue
         args: dict[str, Any] = {"storable": suffix, "action": action}
         if person:
@@ -284,7 +327,7 @@ def _reset_appearance_plugins(person: str = "") -> list[str]:
             bridge.call("call_action", timeout=30.0, **args)
             done.append(f"{suffix} -> {action}")
         except Exception:
-            # The plugin simply is not loaded on this Person; that is fine.
+            # The plugin is not loaded on this Person after all; that is fine.
             continue
     return done
 
