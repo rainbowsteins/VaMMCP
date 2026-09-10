@@ -181,7 +181,14 @@ namespace MVRPlugin {
 				err["error"] = e.Message;
 				SuperController.singleton.SaveJSON(err, resultPath);
 				SetStatus("error " + op + ": " + e.Message);
-				SuperController.LogError("VamMcpBridge: " + e);
+				// Every throw in this file is an op-level failure - a bad argument,
+				// or a storable/asset that is not on the atom - and the caller gets
+				// it back as ok=false either way. LogError also raises a red toast in
+				// VAM's UI, so a routine miss painted the screen with errors: the
+				// server asks for DecalMaker's "Clear All Frames" on every character
+				// load, and a character without DecalMaker threw twice per load.
+				// LogMessage keeps the trace in output_log.txt without the toast.
+				SuperController.LogMessage("VamMcpBridge: " + e);
 			}
 		}
 
@@ -2606,7 +2613,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.7";
+			data["version"] = "0.10.8";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
