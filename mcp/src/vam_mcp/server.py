@@ -28,6 +28,10 @@ from .plugins import add_plugin as add_plugin_impl
 from .plugins import list_plugins as list_plugins_impl
 from .pose import load_look_keep_pose as load_look_keep_pose_impl
 from .pose import load_pose as load_pose_impl
+from .storables import call_action as call_action_impl
+from .storables import get_appearance as get_appearance_impl
+from .storables import list_actions as list_actions_impl
+from .storables import set_bool_param as set_bool_param_impl
 
 mcp = MCPServer(
     name="vam-mcp",
@@ -269,7 +273,18 @@ def move_person(
     ry: float | None = None,
     rz: float | None = None,
 ) -> str:
-    """Move a Person's root control. x/y/z set absolute world position, dx/dy/dz add an offset, rx/ry/rz set rotation in degrees. Call get_position first to read the current values. person is the atom uid from list_persons; empty uses the first Person."""
+    """Move a Person's root control. x/y/z set absolute world position, dx/dy/dz add an offset; rx/ry/rz set rotation in degrees.
+
+    The axes are world axes and they are NOT interchangeable. ry turns the
+    character on the spot - that is the one for facing them a different way.
+    rx tips them forward or back. rz ROLLS them sideways, and because the root
+    sits at floor level (y=0) a roll lays a standing character flat on the
+    ground: it is a rigid transform, but on a physics-driven Person, MacGruber's
+    Life among them, the body does not follow it back and the character stays
+    down. Set ry to 0/90/180/270 for a front/right/back/left turnaround.
+
+    Call get_position first to read the current values. person is the atom uid
+    from list_persons; empty uses the first Person."""
     args: dict[str, Any] = {}
     if person:
         args["person"] = person
@@ -469,6 +484,30 @@ def add_plugin(name: str, person: str = "") -> str:
 def rescan_packages() -> str:
     """Make VAM re-index AddonPackages after a Hub download. A .var on disk is not a usable item until VAM rescans, so call this between download_resource and trying to wear the new item; VAM re-indexes asynchronously, so poll list_geometry_options until the item shows up."""
     return _dump(rescan_packages_impl())
+
+
+@mcp.tool()
+def list_actions(query: str = "", person: str = "") -> str:
+    """List the button-like JSONStorableActions on a Person, as storable -> action rows. Read this before call_action: action names are exact strings off the atom and are not guessed or case-folded. query filters on the storable id or the action name. Capped at 200 rows. person is an atom uid; empty uses the first Person."""
+    return _dump(list_actions_impl(query=query, person=person))
+
+
+@mcp.tool()
+def call_action(storable: str, action: str, person: str = "") -> str:
+    """Press one button on a Person's storable. A .vap cannot do this: RestoreFromJSON restores values and never fires an action, which is why a button that a preset depends on stays unpressed. The one that matters is DecalMaker's "Clear All Frames" - its DecalHead makeup array is additive, so clear it before applying a stack or the layers pile up and the alpha halo every eyeshadow texture carries builds into a visible rectangle on the cheek. storable is the storable id ("_vam_decal_maker_2.core"); a plugin storable is "plugin#<n>_Namespace.Class" where n shifts with load order and the bridge remaps that for you. A storable that is not on the atom comes back as an error naming it - call list_plugins, and add_plugin("decalmaker") if the plugin is missing."""
+    return _dump(call_action_impl(storable=storable, action=action, person=person))
+
+
+@mcp.tool()
+def set_bool_param(storable: str, param: str, value: bool = True, person: str = "") -> str:
+    """Set a bool on a storable through its real setter rather than by restoring raw JSON. Needed when the value alone is not enough: useFemaleMorphsOnMale has to run its setter to rebuild the morph library, and a restored value skips that. Returns the value the storable reports afterwards, so a name that silently did nothing is visible. person is an atom uid; empty uses the first Person."""
+    return _dump(set_bool_param_impl(storable=storable, param=param, value=value, person=person))
+
+
+@mcp.tool()
+def get_appearance(person: str = "") -> str:
+    """Dump every appearance-like storable on a Person as raw JSON: {person, count, skippedCount, storables}. Each entry is that storable's own GetJSON() with its id attached. Skeleton controllers are skipped (those are pose) and so is anything with "animation" in the id. Plugin storables ARE included, because some of them carry appearance - DecalMaker's makeup layers are the case in point. Also the way to confirm add_plugin("decalmaker") finished compiling: poll it until the storable appears. A storable whose value reads back absent may just be at its default, since GetJSON only serialises values that differ from it. person is an atom uid; empty uses the first Person."""
+    return _dump(get_appearance_impl(person=person))
 
 
 def main() -> None:
