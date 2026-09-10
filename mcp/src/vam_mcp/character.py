@@ -54,6 +54,12 @@ _KEEP_CONTROLS = {
     "jawcontrol", "tonguecontrol", "pectoralcontrol",
 }
 
+# A worn item's own fit storables, matched on the suffix because the prefix is
+# the item id. WrapControl holds surfaceOffset - how far the garment sits off
+# the skin - which is what stops a broad-shouldered character's skin poking
+# through a shirt. Dropping it means the fix does not survive a save.
+_ITEM_FIT_SUFFIXES = ("wrapcontrol", "itemcontrol")
+
 # Plugin storables whose enabled state changes how the character renders at
 # rest. Unlike the appearance plugins below, only their on/off matters.
 _DRIVER_PLUGINS = (
@@ -109,6 +115,8 @@ def _is_appearance(sid: str) -> bool:
     if "control" in low:
         # Named, not inferred: eyeTargetControl is a world position and would
         # drag a scene coordinate into a look, so "not a bone" is too loose.
+        if low.endswith(_ITEM_FIT_SUFFIXES):
+            return True
         return low in _KEEP_CONTROLS or "finger" in low or "thumb" in low
     return any(token in low for token in _KEEP_SUBSTRINGS)
 

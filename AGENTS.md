@@ -165,6 +165,12 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
 
+- Skin poking through a garment is usually the garment's fit, not the body. Each worn item has a
+  `<item>WrapControl` with `surfaceOffset` - how far the wrapped mesh sits off the skin. A shirt
+  cut for ordinary shoulders clips on a character given `Shoulder Width=0.45`; raising
+  surfaceOffset from the item's default (often ~0.0012) to ~0.008 fixes it and keeps the
+  silhouette. Reach for this before narrowing a body you deliberately shaped.
+
 - A look is not just materials and morphs. `irises` / `sclera` carry the eye colour (the
   Enhanced Eyes clothing item's own iris layers do **not** render - painting all four bright
   green produces zero green pixels), and `EyelidControl.eyelidLookMorphsEnabled` decides whether
