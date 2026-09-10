@@ -134,6 +134,15 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - Someone standing in the wrong place or facing the wrong way: call `get_position` first, then
   `move_person`. `x`/`y`/`z` are absolute world coordinates, `dx`/`dy`/`dz` are offsets, and
   `rx`/`ry`/`rz` are degrees. Do not guess coordinates you have not read.
+- `move_person`'s rotation axes are world axes and they are **not** interchangeable. `ry` turns the
+  character on the spot — that is the one for turning them to face somewhere else, and `ry` =
+  0/90/180/270 gives a front/right/back/left turnaround. `rx` tips them forward or back. `rz`
+  **rolls** them sideways, and since the root sits at floor level (`y=0`) a roll lays a standing
+  character flat on the ground. Worse, on a physics-driven Person — MacGruber's `Life` is the one
+  installed here — the body does not follow the root back: setting `rx`/`ry`/`rz` to 0 afterwards
+  leaves the character slumped, and no amount of re-posing the root recovers it. Turn a character
+  with `ry` only. If a Person is already down, `remove_person` + `add_person` +
+  `load_character` rebuilds a clean atom, but the new atom carries no plugins.
 - Two people into the current room with a paired pose: `setup_couple(female, male, pose)`. `female` / `male` are look names or exact `.vap` paths. `pose` is whatever the user asked for (or a name from `list_poses`). If the paired pose package is missing, fall back to `list_poses` + `load_pose` per person.
 - Hidden people: `set_person_on`. Extra person: `add_person`, then `load_look` / `load_pose` on the returned uid. Remove: `remove_person`.
 - `load_look` rejects `.json` scene files — those go to `load_scene` (use `merge=true` to add into the current scene).
@@ -161,6 +170,9 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `get_position` / `move_person` | Read or set a Person's world position and rotation |
 | `setup_couple` | Two looks + paired pose in the current scene |
 | `list_plugins` / `add_plugin` | What plugins a Person carries, and load a missing one |
+| `list_actions` / `call_action` | Find and press a storable's buttons (DecalMaker's `Clear All Frames`) |
+| `set_bool_param` | Set a bool through its real setter, e.g. `useFemaleMorphsOnMale` |
+| `get_appearance` | Every appearance-like storable as raw JSON; also confirms a plugin compiled |
 | `rescan_packages` | Make VAM re-index AddonPackages after a Hub download |
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
