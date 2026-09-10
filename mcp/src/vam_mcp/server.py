@@ -20,6 +20,7 @@ from .headlock import lock_head as lock_head_impl
 from .hub import download_resource as download_resource_impl
 from .hub import download_status as download_status_impl
 from .hub import hub_info as hub_info_impl
+from .hub import rescan_packages as rescan_packages_impl
 from .hub import search_hub as search_hub_impl
 from .hub import wait_for_downloads as wait_for_downloads_impl
 from .paths import vam_root
@@ -453,6 +454,12 @@ def list_plugins(person: str = "") -> str:
 def add_plugin(name: str, person: str = "") -> str:
     """Load a VAM plugin onto a Person and wait for it to compile. name can be a shorthand ("decalmaker") or a full VAR path like "Creator.Pkg.1:/Custom/Scripts/.../load.cslist". Needed because an appearance preset restores a plugin's saved values but cannot load the plugin itself, so a character whose makeup lives in DecalMaker loads bare-faced until the plugin is on the atom. Reports ready=true only once the plugin's storable actually appears; ready=false usually means VAM is showing a plugin permission dialog that needs a click."""
     return _dump(add_plugin_impl(name_or_path=name, person=person))
+
+
+@mcp.tool()
+def rescan_packages() -> str:
+    """Make VAM re-index AddonPackages after a Hub download. A .var on disk is not a usable item until VAM rescans, so call this between download_resource and trying to wear the new item; VAM re-indexes asynchronously, so poll list_geometry_options until the item shows up."""
+    return _dump(rescan_packages_impl())
 
 
 def main() -> None:

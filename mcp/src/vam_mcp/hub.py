@@ -191,3 +191,12 @@ def wait_for_downloads(timeout: float = 900.0, poll: float = 5.0) -> dict[str, A
     last["finished"] = False
     last["note"] = "still downloading when the wait timed out"
     return last
+
+
+def rescan_packages() -> dict[str, Any]:
+    """Make VAM re-index AddonPackages so a freshly downloaded item is usable.
+
+    A .var on disk is not yet a wearable item: VAM only sees it after a rescan,
+    which is why a download can succeed and the hair still not be listed.
+    """
+    return bridge.call("rescan_packages", timeout=90.0).get("data") or {}

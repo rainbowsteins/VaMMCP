@@ -503,6 +503,16 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "rescan_packages") {
+				SuperController.singleton.RescanPackages();
+				JSONClass data = new JSONClass();
+				data["rescanned"] = "true";
+				data["note"] = "VAM re-indexes asynchronously; poll list_geometry_options "
+					+ "until the new item appears";
+				result["data"] = data;
+				return result;
+			}
+
 			throw new Exception("unknown op: " + op);
 		}
 
@@ -2537,7 +2547,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.5";
+			data["version"] = "0.10.6";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

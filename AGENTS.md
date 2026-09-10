@@ -161,6 +161,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `get_position` / `move_person` | Read or set a Person's world position and rotation |
 | `setup_couple` | Two looks + paired pose in the current scene |
 | `list_plugins` / `add_plugin` | What plugins a Person carries, and load a missing one |
+| `rescan_packages` | Make VAM re-index AddonPackages after a Hub download |
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
 
