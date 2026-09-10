@@ -23,6 +23,7 @@ from typing import Any
 
 from . import bridge
 from .paths import vam_root
+from .pose import is_body_pose_storable
 
 LIB_REL = "Custom/Atom/Person/Appearance/VamMcp"
 INDEX_NAME = "characters.json"
@@ -30,8 +31,37 @@ INDEX_NAME = "characters.json"
 # Storables worth keeping in a look. "Sim" is the sim-hair storable that holds
 # rootColor / tipColor, and it is the reason a naive name filter loses hair
 # colour. Materials cover skin, eyes and scalp.
-_KEEP_EXACT = {"geometry", "skin", "eyes", "rescaleobject"}
+_KEEP_EXACT = {
+    "geometry", "skin", "eyes", "rescaleobject",
+    # The eye colour lives here, not on the Enhanced Eyes clothing item: painting
+    # all four of that item's iris layers bright green renders zero green pixels,
+    # so those layers are not what you see.
+    "irises", "sclera",
+}
 _KEEP_SUBSTRINGS = ("material", "hair", "clothing", "scalp")
+
+# Storables that drive the face every frame. They are not appearance in
+# themselves, but leaving them out means a saved look does not reproduce: VAM's
+# eyelids-follow-the-gaze system pins Eyelids Top Up near 0.475, which cancels
+# any eye-shape morph and the eyes come back round.
+_KEEP_DRIVERS = {"eyelidcontrol", "autoexpressions"}
+
+# Storables named "...Control" that hold face or soft-body setup rather than a
+# position. Everything else ending in Control is either a skeleton controller or
+# a scene coordinate such as eyeTargetControl.
+_KEEP_CONTROLS = {
+    "eyelidcontrol", "breastcontrol", "glutecontrol",
+    "jawcontrol", "tonguecontrol", "pectoralcontrol",
+}
+
+# Plugin storables whose enabled state changes how the character renders at
+# rest. Unlike the appearance plugins below, only their on/off matters.
+_DRIVER_PLUGINS = (
+    "macgruber.gaze",
+    "macgruber.breathing",
+    "macgruber.driverbreathing",
+    "macgruber.audioattenuation",
+)
 
 # Plugin storables that carry appearance rather than behaviour, matched on the
 # id suffix so the "plugin#<n>_" index a plugin happens to get does not matter.
@@ -64,14 +94,22 @@ def _is_appearance(sid: str) -> bool:
     low = (sid or "").lower()
     if not low:
         return False
-    if "control" in low:
+    # Skeleton controllers carry the pose, never the look. pose.py already
+    # decides which ids those are, so the rule is not restated here.
+    if is_body_pose_storable(low):
         return False
     if low.startswith("plugin"):
-        return any(low.endswith(suffix) for suffix in _APPEARANCE_PLUGINS)
-    if low in _KEEP_EXACT:
+        if any(low.endswith(suffix) for suffix in _APPEARANCE_PLUGINS):
+            return True
+        return any(tag in low for tag in _DRIVER_PLUGINS)
+    if low in _KEEP_EXACT or low in _KEEP_DRIVERS:
         return True
     if low.endswith("sim"):
         return True
+    if "control" in low:
+        # Named, not inferred: eyeTargetControl is a world position and would
+        # drag a scene coordinate into a look, so "not a bone" is too loose.
+        return low in _KEEP_CONTROLS or "finger" in low or "thumb" in low
     return any(token in low for token in _KEEP_SUBSTRINGS)
 
 

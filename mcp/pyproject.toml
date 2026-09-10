@@ -1,6 +1,6 @@
 [project]
 name = "vam-mcp"
-version = "0.10.4"
+version = "0.10.5"
 description = "Unofficial MCP server for Virt-A-Mate scene, look, clothing, pose, expression, and placement control"
 readme = "README.md"
 requires-python = ">=3.10"

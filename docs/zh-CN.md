@@ -179,6 +179,18 @@ VAM_ROOT = 'VAM_ROOT'
 | `hub_info` | 诊断用：Hub 状态，以及各筛选器的真实名称与可选值 |
 | `debug_cameras` | 诊断用：相机、剔除掩码、人物渲染器与层、geometry 参数 |
 
+## 保存角色时容易丢的东西
+
+外观不只是材质和 morph。`irises` / `sclera` 才是眼睛颜色所在(Enhanced Eyes 服装自带的虹膜图层
+**不参与渲染** —— 把它四个图层全刷成亮绿,画面上一个绿像素都没有);
+`EyelidControl.eyelidLookMorphsEnabled` 决定细长眼形能否保住 —— VAM 的"眼睑跟随视线"机制会把
+`Eyelids Top Up` 钉在 0.475 左右,抵消掉所有眼形 morph。
+
+插件 **0.10.5** 起 `save_character` 会一并保存这些;更早版本存的预设需要手工补回。
+
+另外:`Eyes Height` 是无效 morph(-1.0 实测毫无变化),真正收窄眼裂的是 `Eyes Height Upper`(负值压下上眼睑),
+而 `Eyes Height Bottom` 负值会**撑大**眼睛,要用正值。
+
 ## 从 Hub 下载资源
 
 `search_hub` / `download_resource` 驱动的是 VAM 自带的 Hub 浏览器，也就是

@@ -164,6 +164,20 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
 
+- A look is not just materials and morphs. `irises` / `sclera` carry the eye colour (the
+  Enhanced Eyes clothing item's own iris layers do **not** render - painting all four bright
+  green produces zero green pixels), and `EyelidControl.eyelidLookMorphsEnabled` decides whether
+  a narrow eye shape survives: VAM's eyelids-follow-the-gaze system otherwise pins
+  `Eyelids Top Up` near 0.475 and cancels every eye-shape morph. `save_character` keeps all of
+  these from plugin 0.10.5 on; before that they were silently dropped, so a preset saved by an
+  older build needs them pasted back in.
+- `Eyes Height` does nothing (tested at -1.0, no change). The morph that narrows an eye is
+  `Eyes Height Upper` (negative closes the top lid); `Eyes Height Bottom` **opens** it when
+  negative, so use a positive value to raise the lower lid.
+- Two packages can ship the same item filename - `Short Pixie.vam` exists in both
+  `NoStage3.Hair_Short_Pixie` and `vamX.Base`. Toggle using the full id from `activeInPrefix`,
+  not the first match on the leaf name, or you will switch off the copy that was not worn.
+
 - A saved character can depend on a plugin, and **an appearance preset cannot load one**: the
   preset restores a plugin's stored values by storable id, but the load path skips
   `PluginManager` entirely. A character whose makeup lives in DecalMaker therefore loads

@@ -1808,12 +1808,21 @@ namespace MVRPlugin {
 				// Plugin storables are handed over too: some of them hold appearance,
 				// DecalMaker's makeup layers being the case in point. Which ones count
 				// is the server's call, so adding another one needs no recompile.
-				if (l.IndexOf("control") >= 0 || l.IndexOf("animation") >= 0) {
+				if (l.IndexOf("animation") >= 0) {
 					skipped.Add(sid);
 					continue;
 				}
 				JSONStorable st = person.GetStorableByID(sid);
 				if (st == null) {
+					continue;
+				}
+				// Pose lives on the skeleton controllers, and those are all
+				// FreeControllerV3. Testing the type instead of the name keeps
+				// EyelidControl, BreastControl, GluteControl and JawControl, which
+				// are appearance despite what they are called - EyelidControl in
+				// particular decides whether a narrow eye shape survives a reload.
+				if (st is FreeControllerV3) {
+					skipped.Add(sid);
 					continue;
 				}
 				try {
@@ -2528,7 +2537,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.4";
+			data["version"] = "0.10.5";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
