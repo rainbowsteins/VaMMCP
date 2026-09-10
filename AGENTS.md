@@ -160,8 +160,17 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `lock_head` | Stop the head following the camera |
 | `get_position` / `move_person` | Read or set a Person's world position and rotation |
 | `setup_couple` | Two looks + paired pose in the current scene |
+| `list_plugins` / `add_plugin` | What plugins a Person carries, and load a missing one |
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
+
+- A saved character can depend on a plugin, and **an appearance preset cannot load one**: the
+  preset restores a plugin's stored values by storable id, but the load path skips
+  `PluginManager` entirely. A character whose makeup lives in DecalMaker therefore loads
+  bare-faced, with its `DecalHead` layers stored and nowhere to go. Call `list_plugins` after
+  `load_character`, and `add_plugin("decalmaker")` when it is absent, then re-apply the makeup.
+  A plugin compiles asynchronously, so `add_plugin` only reports `ready=true` once the storable
+  appears; `ready=false` usually means VAM is showing a permission dialog that needs a click.
 
 ## Downloading from the Hub
 

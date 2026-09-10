@@ -424,6 +424,12 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "set_bool_param") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = SetBoolParam(person, cmd);
+				return result;
+			}
+
 			if (op == "list_actions") {
 				Atom person = RequiredPerson(cmd);
 				string query = "";
@@ -482,6 +488,18 @@ namespace MVRPlugin {
 				}
 				deferResult = true;
 				SuperController.singleton.StartCoroutine(HubDownloadCoroutine(did, cmd));
+				return result;
+			}
+
+			if (op == "list_plugins") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = ListPlugins(person);
+				return result;
+			}
+
+			if (op == "add_plugin") {
+				Atom person = RequiredPerson(cmd);
+				result["data"] = AddPlugin(person, cmd);
 				return result;
 			}
 
@@ -1058,9 +1076,15 @@ namespace MVRPlugin {
 				if (sid == null || sid == "") {
 					continue;
 				}
-				JSONStorable storable = atom.GetStorableByID(sid);
+				JSONStorable storable = FindStorable(atom, sid);
 				if (storable == null) {
 					continue;
+				}
+				// Plugin slot numbers shift with load order. Rewrite the id so
+				// RestoreFromJSON targets the live storable, not plugin#0 from
+				// the file. DecalMaker makeup was skipped for this reason.
+				if (storable.storeId != null && storable.storeId != sid) {
+					storableJSON["id"] = storable.storeId;
 				}
 				storable.RestoreFromJSON(storableJSON, true, true, null, setUnlisted);
 				restored++;
@@ -1641,9 +1665,45 @@ namespace MVRPlugin {
 			return data;
 		}
 
-		// Exact id first, then a suffix match, because a plugin's storable is
-		// "plugin#<n>_Namespace.Class" and the index shifts with load order.
+		// JSON RestoreFromJSON can set useFemaleMorphsOnMale without firing the
+		// morph-library rebuild. SetBoolParamValue runs the real setter.
+		protected JSONClass SetBoolParam(Atom person, JSONClass cmd) {
+			string sid = "";
+			if (cmd["storable"] != null) {
+				sid = cmd["storable"].Value;
+			}
+			string param = "";
+			if (cmd["param"] != null) {
+				param = cmd["param"].Value;
+			}
+			if (sid == null || sid == "" || param == null || param == "") {
+				throw new Exception("set_bool_param needs storable and param");
+			}
+			JSONStorable storable = FindStorable(person, sid);
+			if (storable == null) {
+				throw new Exception("storable not found on " + person.uid + ": " + sid);
+			}
+			bool val = false;
+			if (cmd["value"] != null) {
+				val = cmd["value"].AsBool;
+			}
+			storable.SetBoolParamValue(param, val);
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["storable"] = storable.storeId;
+			data["param"] = param;
+			data["value"] = Bool(storable.GetBoolParamValue(param));
+			return data;
+		}
+
+		// Exact id first, then a suffix match, then plugin#N remapping.
+		// A plugin storable is "plugin#<n>_Namespace.Class" and n shifts with
+		// load order: DecalMaker saved as plugin#0 is plugin#1 when Life is
+		// already in slot 0. EndsWith("plugin#0_...") cannot find that.
 		protected JSONStorable FindStorable(Atom person, string sid) {
+			if (sid == null || sid == "") {
+				return null;
+			}
 			JSONStorable exact = person.GetStorableByID(sid);
 			if (exact != null) {
 				return exact;
@@ -1654,6 +1714,33 @@ namespace MVRPlugin {
 					continue;
 				}
 				if (candidate.ToLower().EndsWith(want)) {
+					return person.GetStorableByID(candidate);
+				}
+			}
+			int marker = sid.IndexOf("plugin#");
+			if (marker < 0) {
+				return null;
+			}
+			int under = sid.IndexOf('_', marker);
+			if (under < 0 || under + 1 >= sid.Length) {
+				return null;
+			}
+			string prefix = sid.Substring(0, marker).ToLower();
+			string suffix = sid.Substring(under).ToLower();
+			foreach (string candidate in person.GetStorableIDs()) {
+				if (candidate == null) {
+					continue;
+				}
+				string cl = candidate.ToLower();
+				int cmark = cl.IndexOf("plugin#");
+				if (cmark < 0) {
+					continue;
+				}
+				int cunder = cl.IndexOf('_', cmark);
+				if (cunder < 0) {
+					continue;
+				}
+				if (cl.Substring(0, cmark) == prefix && cl.Substring(cunder) == suffix) {
 					return person.GetStorableByID(candidate);
 				}
 			}
@@ -2354,10 +2441,94 @@ namespace MVRPlugin {
 			WriteDeferred(id, "hub_download", data, err);
 		}
 
+		// ---------------- plugins ---------------------------------------------
+		// An appearance preset can carry a plugin's saved values but cannot load
+		// the plugin itself, so a made-up character arrives bare-faced unless the
+		// plugin is already on the atom. These two ops close that gap.
+
+		protected MVRPluginManager PluginManagerOf(Atom person) {
+			JSONStorable st = person.GetStorableByID("PluginManager");
+			MVRPluginManager pm = st as MVRPluginManager;
+			if (pm == null) {
+				throw new Exception("no PluginManager on " + person.uid);
+			}
+			return pm;
+		}
+
+		protected JSONClass PluginMap(MVRPluginManager pm) {
+			JSONClass jc = pm.GetJSON(true, true, false);
+			JSONClass map = new JSONClass();
+			if (jc != null && jc["plugins"] != null && jc["plugins"].AsObject != null) {
+				JSONClass src = jc["plugins"].AsObject;
+				foreach (string key in src.Keys) {
+					map[key] = src[key].Value;
+				}
+			}
+			return map;
+		}
+
+		protected JSONClass ListPlugins(Atom person) {
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["plugins"] = PluginMap(PluginManagerOf(person));
+			return data;
+		}
+
+		protected JSONClass AddPlugin(Atom person, JSONClass cmd) {
+			string path = "";
+			if (cmd["path"] != null) {
+				path = cmd["path"].Value;
+			}
+			if (path == null || path == "") {
+				throw new Exception("missing path");
+			}
+
+			MVRPluginManager pm = PluginManagerOf(person);
+			JSONClass map = PluginMap(pm);
+
+			// Already loaded? Say so instead of stacking a second copy, which
+			// would give the atom two of the same storable.
+			foreach (string key in map.Keys) {
+				if (map[key].Value == path) {
+					JSONClass same = new JSONClass();
+					same["person"] = person.uid;
+					same["path"] = path;
+					same["alreadyLoaded"] = "true";
+					same["slot"] = key;
+					same["plugins"] = map;
+					return same;
+				}
+			}
+
+			// HasKey, not a null check: a missing key can come back as a lazy
+			// node rather than null, which would spin here forever.
+			int slot = 0;
+			while (map.HasKey("plugin#" + slot.ToString())) {
+				slot++;
+			}
+			string newSlot = "plugin#" + slot.ToString();
+			map[newSlot] = path;
+
+			JSONClass restore = new JSONClass();
+			restore["id"] = "PluginManager";
+			restore["plugins"] = map;
+			// setMissingToDefault false so the entries already there survive.
+			pm.LateRestoreFromJSON(restore, true, true, false);
+
+			JSONClass data = new JSONClass();
+			data["person"] = person.uid;
+			data["path"] = path;
+			data["slot"] = newSlot;
+			data["plugins"] = PluginMap(pm);
+			data["note"] = "a plugin compiles asynchronously - poll list_plugins or "
+				+ "get_appearance until its storable appears before setting its params";
+			return data;
+		}
+
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.3";
+			data["version"] = "0.10.4";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

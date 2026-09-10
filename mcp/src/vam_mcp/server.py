@@ -23,6 +23,8 @@ from .hub import hub_info as hub_info_impl
 from .hub import search_hub as search_hub_impl
 from .hub import wait_for_downloads as wait_for_downloads_impl
 from .paths import vam_root
+from .plugins import add_plugin as add_plugin_impl
+from .plugins import list_plugins as list_plugins_impl
 from .pose import load_look_keep_pose as load_look_keep_pose_impl
 from .pose import load_pose as load_pose_impl
 
@@ -439,6 +441,18 @@ def wait_for_downloads(timeout: float = 900.0) -> str:
 def hub_info() -> str:
     """Diagnostic. Hub enabled/downloader state plus the real names and allowed values of every HubBrowse filter chooser (category, pay type, sort, creator, tags). Use when a search_hub filter did not take."""
     return _dump(hub_info_impl())
+
+
+@mcp.tool()
+def list_plugins(person: str = "") -> str:
+    """List the plugins loaded on a Person, as slot -> path. Use it to check whether a plugin a saved character depends on (DecalMaker for makeup) is actually present."""
+    return _dump(list_plugins_impl(person=person))
+
+
+@mcp.tool()
+def add_plugin(name: str, person: str = "") -> str:
+    """Load a VAM plugin onto a Person and wait for it to compile. name can be a shorthand ("decalmaker") or a full VAR path like "Creator.Pkg.1:/Custom/Scripts/.../load.cslist". Needed because an appearance preset restores a plugin's saved values but cannot load the plugin itself, so a character whose makeup lives in DecalMaker loads bare-faced until the plugin is on the atom. Reports ready=true only once the plugin's storable actually appears; ready=false usually means VAM is showing a plugin permission dialog that needs a click."""
+    return _dump(add_plugin_impl(name_or_path=name, person=person))
 
 
 def main() -> None:

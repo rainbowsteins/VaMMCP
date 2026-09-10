@@ -172,6 +172,7 @@ VAM_ROOT = 'VAM_ROOT'
 | `list_morphs` / `set_morphs` | 搜索并设置任意 morph |
 | `list_geometry_options` / `set_geometry_options` | 发型 / 服装开关 |
 | `save_character` / `list_characters` / `load_character` | 本地角色库 |
+| `list_plugins` / `add_plugin` | 查看人物身上的插件 / 装载缺失的插件 |
 | `search_hub` | 用 VAM 内建的 Hub 浏览器搜索资源，按下载量排序 |
 | `download_resource` | 列出资源包含的包与体积；`confirm=true` 时才真正下载 |
 | `download_status` / `wait_for_downloads` | 查看下载队列 / 等待队列清空 |
