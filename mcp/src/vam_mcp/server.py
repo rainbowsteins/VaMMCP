@@ -278,10 +278,11 @@ def move_person(
     The axes are world axes and they are NOT interchangeable. ry turns the
     character on the spot - that is the one for facing them a different way.
     rx tips them forward or back. rz ROLLS them sideways, and because the root
-    sits at floor level (y=0) a roll lays a standing character flat on the
-    ground: it is a rigid transform, but on a physics-driven Person, MacGruber's
-    Life among them, the body does not follow it back and the character stays
-    down. Set ry to 0/90/180/270 for a front/right/back/left turnaround.
+    sits at floor level (y=0) a roll of 90 lays a standing character flat on the
+    ground. That is geometry, not a physics fault: the write is a rigid
+    transform, and rz back to 0 stands the character up again - checked on a
+    Person carrying MacGruber's Life with its modules enabled, and on one with no
+    plugins at all. Set ry to 0/90/180/270 for a front/right/back/left turnaround.
 
     Call get_position first to read the current values. person is the atom uid
     from list_persons; empty uses the first Person."""

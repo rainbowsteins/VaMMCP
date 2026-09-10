@@ -137,12 +137,19 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - `move_person`'s rotation axes are world axes and they are **not** interchangeable. `ry` turns the
   character on the spot — that is the one for turning them to face somewhere else, and `ry` =
   0/90/180/270 gives a front/right/back/left turnaround. `rx` tips them forward or back. `rz`
-  **rolls** them sideways, and since the root sits at floor level (`y=0`) a roll lays a standing
-  character flat on the ground. Worse, on a physics-driven Person — MacGruber's `Life` is the one
-  installed here — the body does not follow the root back: setting `rx`/`ry`/`rz` to 0 afterwards
-  leaves the character slumped, and no amount of re-posing the root recovers it. Turn a character
-  with `ry` only. If a Person is already down, `remove_person` + `add_person` +
-  `load_character` rebuilds a clean atom, but the new atom carries no plugins.
+  **rolls** them sideways, and since the root sits at floor level (`y=0`) a roll of 90 lays a
+  standing character flat on the ground. That is geometry, not a physics fault: the root write is a
+  rigid transform, and `rz` back to 0 stands the character up again. Checked both ways on a Person
+  carrying MacGruber's `Life` with all four of its modules enabled, and on one with no plugins at
+  all — the roll came back cleanly in both. Turn a character with `ry`; reach for `rx`/`rz` only
+  when a tip or a roll is actually what is wanted.
+- MacGruber's `Life` is a `.cslist` of six scripts and lands on the atom as four toggleable
+  storables — `plugin#<n>_MacGruber.Breathing`, `.DriverBreathing`, `.Gaze` and
+  `.AudioAttenuation` — each carrying an `enabled` bool. `DriverBreathing` drives `chestControl`'s
+  joint rotation drive and `Gaze` writes `head.transform` every frame, so both touch the body
+  rather than only morphs. `set_bool_param(storable, "enabled", false)` switches one off, and
+  `load_character` restores whatever the preset saved: Ayaka Male has all four off on purpose, so
+  nothing rewrites the face. A fresh `add_plugin` leaves them on.
 - Two people into the current room with a paired pose: `setup_couple(female, male, pose)`. `female` / `male` are look names or exact `.vap` paths. `pose` is whatever the user asked for (or a name from `list_poses`). If the paired pose package is missing, fall back to `list_poses` + `load_pose` per person.
 - Hidden people: `set_person_on`. Extra person: `add_person`, then `load_look` / `load_pose` on the returned uid. Remove: `remove_person`.
 - `load_look` rejects `.json` scene files — those go to `load_scene` (use `merge=true` to add into the current scene).
