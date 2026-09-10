@@ -350,14 +350,23 @@ def set_geometry_options(
     clear_prefix: str = "",
     person: str = "",
 ) -> str:
-    """Turn hair or clothing items on or off. options is a list of {"name": "hair:Low Twintails", "on": true}. clear_prefix (e.g. "hair:") switches everything with that prefix off first, so swapping to exactly one hair item is a single call. Get real names from list_geometry_options."""
+    """Turn hair or clothing items on or off. options is a list of {"name": "hair:Low Twintails", "on": true}. clear_prefix (e.g. "hair:") switches everything with that prefix off first, so swapping to exactly one hair item is a single call. Get real names from list_geometry_options. A name that does not exist comes back in `failed` with a `didYouMean`; a `duplicates` entry means the same item file is worn twice from two packages (vamX re-bundles other creators' hair) and the meshes are stacking - switch off all but one using the full id."""
     args: dict[str, Any] = {"options": options}
     if clear_prefix:
         args["clearPrefix"] = clear_prefix
     if person:
         args["person"] = person
     result = bridge.call("set_geometry_options", timeout=45.0, **args)
-    return _dump(_capture_after(result.get("data") or result))
+    data = result.get("data") or result
+    if isinstance(data, dict) and data.get("duplicates"):
+        # Lead with it: this was missed twice when it sat at the end of the reply.
+        items = ", ".join(str(d.get("item")) for d in data["duplicates"])
+        data = dict(data)
+        data["ATTENTION"] = (
+            "worn twice, meshes are stacking: %s. Switch off the extra copies "
+            "with their full ids before judging the result." % items
+        )
+    return _dump(_capture_after(data))
 
 
 @mcp.tool()

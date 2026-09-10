@@ -175,9 +175,12 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - `Eyes Height` does nothing (tested at -1.0, no change). The morph that narrows an eye is
   `Eyes Height Upper` (negative closes the top lid); `Eyes Height Bottom` **opens** it when
   negative, so use a positive value to raise the lower lid.
-- Two packages can ship the same item filename - `Short Pixie.vam` exists in both
-  `NoStage3.Hair_Short_Pixie` and `vamX.Base`. Toggle using the full id from `activeInPrefix`,
-  not the first match on the leaf name, or you will switch off the copy that was not worn.
+- Two packages can ship the same item filename - `Short Pixie.vam` and `Brows Evey.vam` each
+  exist in both the original pack and `vamX.Base`, which re-bundles other creators' assets.
+  Toggle using the full id from `activeInPrefix`, not the first match on the leaf name, or you
+  will switch off the copy that was not worn - and switching one on while the other is already
+  on stacks two copies of the mesh. From plugin 0.10.7 `set_geometry_options` reports this as
+  `duplicates` plus an `ATTENTION` line; before that it was caught only by eye.
 
 - A saved character can depend on a plugin, and **an appearance preset cannot load one**: the
   preset restores a plugin's stored values by storable id, but the load path skips

@@ -1512,6 +1512,58 @@ namespace MVRPlugin {
 			return "";
 		}
 
+		// Two packages can ship the same item file name - vamX re-bundles other
+		// creators' hair, so "Brows Evey.vam" exists twice. Wearing both stacks
+		// the meshes, and the toggle call itself has no way to notice.
+		protected JSONArray WornDuplicates(JSONStorable geo) {
+			JSONArray dupes = new JSONArray();
+			List<string> names = geo.GetBoolParamNames();
+			if (names == null) {
+				return dupes;
+			}
+			List<string> leaves = new List<string>();
+			List<string> fulls = new List<string>();
+			for (int i = 0; i < names.Count; i++) {
+				string n = names[i];
+				if (n == null || n == "") {
+					continue;
+				}
+				bool on = false;
+				try {
+					on = geo.GetBoolParamValue(n);
+				}
+				catch {
+					continue;
+				}
+				if (!on) {
+					continue;
+				}
+				int cut = n.LastIndexOf("/");
+				leaves.Add(cut >= 0 ? n.Substring(cut + 1) : n);
+				fulls.Add(n);
+			}
+			List<string> reported = new List<string>();
+			for (int i = 0; i < leaves.Count; i++) {
+				if (reported.Contains(leaves[i])) {
+					continue;
+				}
+				JSONArray copies = new JSONArray();
+				for (int k = 0; k < leaves.Count; k++) {
+					if (leaves[k] == leaves[i]) {
+						copies.Add(new JSONData(fulls[k]));
+					}
+				}
+				if (copies.Count > 1) {
+					reported.Add(leaves[i]);
+					JSONClass row = new JSONClass();
+					row["item"] = leaves[i];
+					row["wornCopies"] = copies;
+					dupes.Add(row);
+				}
+			}
+			return dupes;
+		}
+
 		protected JSONClass SetGeometryOptions(Atom person, JSONClass cmd) {
 			JSONStorable geo = person.GetStorableByID("geometry");
 			if (geo == null) {
@@ -1608,6 +1660,13 @@ namespace MVRPlugin {
 			data["cleared"] = cleared;
 			data["applied"] = applied;
 			data["failed"] = failed;
+			JSONArray dupes = WornDuplicates(geo);
+			if (dupes.Count > 0) {
+				data["duplicates"] = dupes;
+				data["warning"] = "the same item file is worn more than once, from "
+					+ "different packages - the meshes stack. Switch off all but one, "
+					+ "using the full id.";
+			}
 			return data;
 		}
 
@@ -2547,7 +2606,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.6";
+			data["version"] = "0.10.7";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
