@@ -523,6 +523,31 @@ def get_appearance(person: str = "") -> str:
     return _dump(get_appearance_impl(person=person))
 
 
+@mcp.tool()
+def list_atoms(query: str = "") -> str:
+    """List every atom in the scene with its uid, type and on/off state. Unlike list_persons this includes lights, cameras, subscenes and UI atoms. query filters on the uid or the type. Use it to find what get_atom_params / set_atom_params can target."""
+    args: dict[str, Any] = {}
+    if query:
+        args["query"] = query
+    return _dump(bridge.call("list_atoms", timeout=25.0, **args).get("data") or {})
+
+
+@mcp.tool()
+def get_atom_params(atom: str, storable: str = "") -> str:
+    """Read an atom's parameters, grouped by storable into floats / bools / strings / colors. atom is a uid from list_atoms; pass storable to read just one (a light's is "Light", holding on, intensity, range, shadowsOn and color). This is the only way to see a non-Person atom - get_appearance refuses anything that is not a Person."""
+    args: dict[str, Any] = {"atom": atom}
+    if storable:
+        args["storable"] = storable
+    return _dump(bridge.call("get_atom_params", timeout=30.0, **args).get("data") or {})
+
+
+@mcp.tool()
+def set_atom_params(atom: str, storable: str, params: dict[str, Any]) -> str:
+    """Set parameters on any atom, including lights. params maps param name to value; the type is taken from the atom, so a float takes a number, a bool takes true/false and a colour takes {"h":..,"s":..,"v":..}. Every write is read straight back and reported under `readBack`, and a name the storable does not have comes back in `failed` rather than passing silently. Example: set_atom_params("3PointLightSetup/LightBack", "Light", {"on": true, "intensity": 6.0})."""
+    result = bridge.call("set_atom_params", timeout=45.0, atom=atom, storable=storable, params=params)
+    return _dump(result.get("data") or result)
+
+
 def main() -> None:
     mcp.run()
 

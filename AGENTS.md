@@ -205,6 +205,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | `set_bool_param` | Set a bool through its real setter, e.g. `useFemaleMorphsOnMale` |
 | `get_appearance` | Every appearance-like storable as raw JSON; also confirms a plugin compiled |
 | `rescan_packages` | Make VAM re-index AddonPackages after a Hub download |
+| `list_atoms` / `get_atom_params` / `set_atom_params` | Read and write any atom, lights included |
 | `search_hub` / `download_resource` | Search VAM's built-in Hub browser and download through it |
 | `download_status` / `wait_for_downloads` / `hub_info` | Download queue, and the Hub's real filter values |
 

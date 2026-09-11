@@ -547,6 +547,21 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			if (op == "list_atoms") {
+				result["data"] = ListAtoms(cmd);
+				return result;
+			}
+
+			if (op == "get_atom_params") {
+				result["data"] = GetAtomParams(cmd);
+				return result;
+			}
+
+			if (op == "set_atom_params") {
+				result["data"] = SetAtomParams(cmd);
+				return result;
+			}
+
 			throw new Exception("unknown op: " + op);
 		}
 
@@ -2637,10 +2652,235 @@ namespace MVRPlugin {
 			return data;
 		}
 
+		// ---------------- any atom ------------------------------------------
+		// RequiredPerson deliberately refuses a non-Person, which left the
+		// scene's light rig unreachable. These three take an atom uid instead.
+
+		protected Atom RequiredAtom(JSONClass cmd) {
+			string uid = "";
+			if (cmd["atom"] != null) {
+				uid = cmd["atom"].Value;
+			}
+			if (uid == null || uid == "") {
+				throw new Exception("missing atom");
+			}
+			Atom atom = SuperController.singleton.GetAtomByUid(uid);
+			if (atom == null) {
+				throw new Exception("atom not found: " + uid);
+			}
+			return atom;
+		}
+
+		protected JSONClass ListAtoms(JSONClass cmd) {
+			string q = "";
+			if (cmd["query"] != null) {
+				q = cmd["query"].Value.ToLower();
+			}
+			JSONArray rows = new JSONArray();
+			foreach (Atom a in SuperController.singleton.GetAtoms()) {
+				if (a == null) {
+					continue;
+				}
+				string uid = a.uid;
+				if (q != "" && uid.ToLower().IndexOf(q) < 0
+					&& a.type.ToLower().IndexOf(q) < 0) {
+					continue;
+				}
+				JSONClass j = new JSONClass();
+				j["uid"] = uid;
+				j["type"] = a.type;
+				j["on"] = a.on ? "true" : "false";
+				rows.Add(j);
+			}
+			JSONClass data = new JSONClass();
+			data["count"] = rows.Count.ToString();
+			data["atoms"] = rows;
+			return data;
+		}
+
+		protected JSONClass GetAtomParams(JSONClass cmd) {
+			Atom atom = RequiredAtom(cmd);
+			string want = "";
+			if (cmd["storable"] != null) {
+				want = cmd["storable"].Value;
+			}
+			JSONArray rows = new JSONArray();
+			foreach (string sid in atom.GetStorableIDs()) {
+				if (want != "" && sid != want) {
+					continue;
+				}
+				JSONStorable st = atom.GetStorableByID(sid);
+				if (st == null) {
+					continue;
+				}
+				JSONClass row = new JSONClass();
+				row["id"] = sid;
+				row["floats"] = NamedFloats(st);
+				row["bools"] = NamedBools(st);
+				row["strings"] = NamedStrings(st);
+				row["colors"] = NamedColors(st);
+				rows.Add(row);
+			}
+			JSONClass data = new JSONClass();
+			data["atom"] = atom.uid;
+			data["type"] = atom.type;
+			data["storables"] = rows;
+			return data;
+		}
+
+		protected JSONClass NamedFloats(JSONStorable st) {
+			JSONClass j = new JSONClass();
+			List<string> names = st.GetFloatParamNames();
+			if (names != null) {
+				for (int i = 0; i < names.Count; i++) {
+					try {
+						j[names[i]] = st.GetFloatParamValue(names[i]).ToString("0.#####");
+					}
+					catch {
+					}
+				}
+			}
+			return j;
+		}
+
+		protected JSONClass NamedBools(JSONStorable st) {
+			JSONClass j = new JSONClass();
+			List<string> names = st.GetBoolParamNames();
+			if (names != null) {
+				for (int i = 0; i < names.Count; i++) {
+					try {
+						j[names[i]] = st.GetBoolParamValue(names[i]) ? "true" : "false";
+					}
+					catch {
+					}
+				}
+			}
+			return j;
+		}
+
+		protected JSONClass NamedStrings(JSONStorable st) {
+			JSONClass j = new JSONClass();
+			List<string> names = st.GetStringParamNames();
+			if (names != null) {
+				for (int i = 0; i < names.Count; i++) {
+					try {
+						string v = st.GetStringParamValue(names[i]);
+						j[names[i]] = v == null ? "" : v;
+					}
+					catch {
+					}
+				}
+			}
+			return j;
+		}
+
+		protected JSONClass NamedColors(JSONStorable st) {
+			JSONClass j = new JSONClass();
+			List<string> names = st.GetColorParamNames();
+			if (names != null) {
+				for (int i = 0; i < names.Count; i++) {
+					try {
+						HSVColor c = st.GetColorParamValue(names[i]);
+						JSONClass hsv = new JSONClass();
+						hsv["h"] = c.H.ToString("0.#####");
+						hsv["s"] = c.S.ToString("0.#####");
+						hsv["v"] = c.V.ToString("0.#####");
+						j[names[i]] = hsv;
+					}
+					catch {
+					}
+				}
+			}
+			return j;
+		}
+
+		// Writes, then reads each one back. A setter that silently ignores an
+		// unknown name is how set_geometry_options used to report success for a
+		// no-op, so nothing here is trusted without a read.
+		protected JSONClass SetAtomParams(JSONClass cmd) {
+			Atom atom = RequiredAtom(cmd);
+			string sid = "";
+			if (cmd["storable"] != null) {
+				sid = cmd["storable"].Value;
+			}
+			if (sid == "") {
+				throw new Exception("missing storable");
+			}
+			JSONStorable st = atom.GetStorableByID(sid);
+			if (st == null) {
+				throw new Exception("no storable " + sid + " on " + atom.uid);
+			}
+
+			JSONArray applied = new JSONArray();
+			JSONArray failed = new JSONArray();
+
+			if (cmd["params"] != null && cmd["params"].AsObject != null) {
+				JSONClass want = cmd["params"].AsObject;
+				foreach (string key in want.Keys) {
+					try {
+						if (st.IsFloatJSONParam(key)) {
+							st.SetFloatParamValue(key, want[key].AsFloat);
+							Applied(applied, key, "float",
+								st.GetFloatParamValue(key).ToString("0.#####"));
+						}
+						else if (st.IsBoolJSONParam(key)) {
+							bool b = want[key].Value.ToLower() == "true";
+							st.SetBoolParamValue(key, b);
+							Applied(applied, key, "bool",
+								st.GetBoolParamValue(key) ? "true" : "false");
+						}
+						else if (st.IsColorJSONParam(key)) {
+							JSONClass c = want[key].AsObject;
+							HSVColor hsv = new HSVColor();
+							hsv.H = c["h"].AsFloat;
+							hsv.S = c["s"].AsFloat;
+							hsv.V = c["v"].AsFloat;
+							st.SetColorParamValue(key, hsv);
+							HSVColor got = st.GetColorParamValue(key);
+							Applied(applied, key, "color",
+								got.H.ToString("0.###") + "," + got.S.ToString("0.###")
+								+ "," + got.V.ToString("0.###"));
+						}
+						else if (st.IsStringJSONParam(key)) {
+							st.SetStringParamValue(key, want[key].Value);
+							Applied(applied, key, "string", st.GetStringParamValue(key));
+						}
+						else {
+							JSONClass bad = new JSONClass();
+							bad["param"] = key;
+							bad["error"] = "no such param on " + sid;
+							failed.Add(bad);
+						}
+					}
+					catch (Exception e) {
+						JSONClass bad = new JSONClass();
+						bad["param"] = key;
+						bad["error"] = e.Message;
+						failed.Add(bad);
+					}
+				}
+			}
+
+			JSONClass data = new JSONClass();
+			data["atom"] = atom.uid;
+			data["storable"] = sid;
+			data["applied"] = applied;
+			data["failed"] = failed;
+			return data;
+		}
+
+		protected void Applied(JSONArray arr, string key, string kind, string readBack) {
+			JSONClass j = new JSONClass();
+			j["param"] = key;
+			j["kind"] = kind;
+			j["readBack"] = readBack;
+			arr.Add(j);
+		}
+
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.9";
+			data["version"] = "0.11.0";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {
