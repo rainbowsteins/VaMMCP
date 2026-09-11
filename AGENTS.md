@@ -78,6 +78,10 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   `set_geometry_options`, checking `capture_view` between steps, and finish with
   `save_character(name, description)`. Report the saved name to the user; that name is how they ask
   for the character next time. Never guess a morph or hair name — `list_*` gives the real one.
+- `list_characters` returns every stored character **with its whole description**, and those
+  descriptions are long on purpose. One unfiltered call here cost roughly 6k tokens, and every
+  `load_character` echoes its character's description back again. Pass a `query` when you know
+  what you are looking for, and do not call it twice in one task.
 - `load_character` restores in two passes on purpose. A preset's `geometry` starts the hair and
   clothing loading, so materials owned by those items do not exist yet during a single pass and get
   skipped: a character loaded into a freshly started VAM came back with default hair and eye colour.
@@ -89,7 +93,11 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   alpha halo every eyeshadow texture carries builds into a visible rectangle on the cheek.
   `load_character` does this reset for you.
 - A button on a storable is a `JSONStorableAction`; `RestoreFromJSON` never touches one, so a vap
-  cannot press it. Use `list_actions` to find it and `call_action` to press it.
+  cannot press it. Use `list_actions` to find it and `call_action` to press it. The one that
+  bites: a garment's cloth sim collapses after a load or a root move - a dress skirt lost its
+  flare and the back view showed bare skin where the skirt should be - and `<item>Sim` carries a
+  `Reset` action that restores it. Because that is an action, **no preset can carry it**: a
+  character whose outfit needs one needs the `call_action` after every `load_character`.
 - `load_pose` applies pose storables only. Presets filed as poses often are not pose-only -
   vamX's `_POSE LIBRARY` entries carry a `geometry` storable, and applying one wholesale
   replaced a built character's face, hair and clothing. What gets dropped is reported;
@@ -99,6 +107,20 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   posed and only the outfit or makeup should change. Do not extend that filter to every id
   ending in "Control" - `BreastControl`, `GluteControl`, `EyelidControl`, `JawControl` and the
   finger controls are appearance, and stripping them loses real look data.
+- `load_clothing` means "wear this outfit", not "add this garment": it replaces the whole
+  wardrobe. Cosmetic layers are clothing items too, so a face built from `paledriver` / `CMA` eye
+  shadows, `EyeGlitter` and a `BooMoon` lips layer comes back bare-faced the moment any dress is
+  loaded - verified on `Chen Xiaoman`, whose `activeInPrefix` dropped from 16 items to the dress
+  alone. Keep the list of those layers and switch them back on after every outfit change, and do
+  **not** tidy up with `clear_prefix="clothing:"`, which takes the makeup with it.
+- A look or character preset can carry the atom's **root position and rotation**. R3D's
+  `Asian_Girl` stores `control: {position: {x 0.839, y 0.040, z 0.476}, rotation.y 332}`, so
+  loading it teleports the character to wherever the creator saved it - read back live, the root
+  returned exactly those numbers, which looks precisely like a physics drift and is not one. That
+  spot was 0.19 m from the monitor camera, inside the near clip, so the atom rendered invisible
+  and every capture came back an empty black frame. `move_person` after the load puts it right.
+  When a loaded character does not appear at all, read `get_position` for the preset's own
+  coordinates before blaming the camera or the renderer.
 - To choose hair, clothing or shoes, read the preview image the creator shipped: a `.vam` almost
   always has a `.jpg` of the same name beside it inside the package. Extract those and compare
   them. Do not put candidates on the character and render them to compare - it took two failed
@@ -153,6 +175,8 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 - Two people into the current room with a paired pose: `setup_couple(female, male, pose)`. `female` / `male` are look names or exact `.vap` paths. `pose` is whatever the user asked for (or a name from `list_poses`). If the paired pose package is missing, fall back to `list_poses` + `load_pose` per person.
 - Hidden people: `set_person_on`. Extra person: `add_person`, then `load_look` / `load_pose` on the returned uid. Remove: `remove_person`.
 - `load_look` rejects `.json` scene files — those go to `load_scene` (use `merge=true` to add into the current scene).
+- A merged scene lives in memory only. `load_scene(merge=true)` is how a background gets changed: install nothing, merge an environment, and the light and the backdrop both change, because in VAM the skybox **is** the image-based lighting, not a layer behind the subject. There is no path colour to set - `VamXFan.Neutral-Environment-Color.1:/Saves/scene/Neutral-Environment-MERGE.json` is the installed grey studio, and its grey comes from three things at once (a `SkyGray` skybox on `CoreControl`'s `GlobalLighting`, an `InvisibleLight`, and a `ColorScale` plugin on the environment asset). `save_scene` afterwards, or the whole thing is gone on the next restart. The MCP cannot touch any of those settings directly: `set_bool_param` and `load_look` both go through `RequiredPerson`, and there is no string or float parameter setter, so `skyName` and `diffuseIntensity` are VAM-UI-only.
+- `save_scene` overwrites without asking, on purpose: VAM's own save button runs through a path that raises a modal confirm when the file exists, and a headless caller has nobody to click it. It writes the scene JSON but not the sibling preview `.jpg`, so a scene first saved this way shows an empty thumbnail in VAM's browser until it is saved once from the UI.
 - `person=""` = first Person. `person="all"` on `load_pose` applies the pose to everyone.
 - After the user adds new `.var` / look files, the catalog is stale until the MCP process restarts. Say that; do not claim the new files are visible.
 
@@ -161,7 +185,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
 | Tool | Use |
 | --- | --- |
 | `status` | Bridge alive? Call first. |
-| `list_scenes` / `load_scene` | Search / load a scene |
+| `list_scenes` / `load_scene` / `save_scene` | Search / load / save a scene |
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, show/hide |
 | `capture_view` | Screenshot to `preview.png` |
@@ -189,6 +213,25 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   cut for ordinary shoulders clips on a character given `Shoulder Width=0.45`; raising
   surfaceOffset from the item's default (often ~0.0012) to ~0.008 fixes it and keeps the
   silhouette. Reach for this before narrowing a body you deliberately shaped.
+
+- Not every fit fault is `surfaceOffset`. `GeeMan55 Dress M6` opened its waist seam and showed
+  two patches of skin through it at the item's stock values, and raising surfaceOffset twentyfold
+  did nothing at all; `wrapToSmoothedVerts=true` alone closed it. **Change one parameter at a
+  time.** Setting that plus a thicker `additionalThicknessMultiplier` and more `smoothIterations`
+  in one go did close the seam and simultaneously painted dark grey bands along every garment
+  seam - and at the figure size it was first shot at, ~714 px tall, that read as fabric shading
+  and went unnoticed until the same character was re-shot at 1122 px.
+- A garment's own `ItemControl.disableAnatomy=true` does **not** stop the body poking through it.
+  The lever that works is on the body: push the anatomy in with morphs (`Nipple Length`,
+  `Nipples Depth`, `Nipples Size`, `Nipple Diameter`, `Areolae Perk`, `Areola Depth`) - the same
+  recipe `Ayaka JK Femboy` uses to flatten its chest.
+- A fit saved into a character preset silently reverts when that character is loaded.
+  `<item>WrapControl` and `<item>ItemControl` belong to a garment that is still loading during the
+  first pass, so it cannot see them, and a server old enough to lack the fit fix drops them from
+  the second pass too. Verified: after `load_character("Chen Xiaoman")` both read back as `{}`
+  while `EyelidControl` (not garment-owned) kept its value. Check them with `get_appearance`
+  after loading a character that depends on a fit, and re-apply the fit `.vap` until the fixed
+  server is running.
 
 - A look is not just materials and morphs. `irises` / `sclera` carry the eye colour (the
   Enhanced Eyes clothing item's own iris layers do **not** render - painting all four bright
