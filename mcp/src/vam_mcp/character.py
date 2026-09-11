@@ -346,6 +346,13 @@ def _needs_second_pass(storable: dict[str, Any]) -> bool:
         return False
     if sid.endswith("sim") or "material" in sid or "scalp" in sid:
         return True
+    # A garment's fit storables belong to the garment, so they are exactly as
+    # late as its materials: <item>WrapControl does not exist while the first
+    # pass is still loading that item, and it has no "color" key, so the
+    # fallback below never caught it either. The fit was saved but never
+    # replayed, and the clipping it was raised to fix came straight back.
+    if sid.endswith(_ITEM_FIT_SUFFIXES):
+        return True
     # Plugin storables are deliberately excluded: an additive one would apply
     # its whole payload a second time. They come through on the first pass.
     if sid.startswith("plugin"):
