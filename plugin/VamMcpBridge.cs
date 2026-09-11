@@ -292,6 +292,33 @@ namespace MVRPlugin {
 				return result;
 			}
 
+			// Deliberately NOT VAM's own Save(saveName). That ends in
+			// SaveInternal, which calls FileManager.ConfirmPluginActionWithUser
+			// when the target file already exists - a modal prompt, and a
+			// headless caller has nobody to click it, so overwriting a scene
+			// would hang. GetSaveJSON + SaveJSON is the exact pair the private
+			// SaveInternalFinish uses to write the file, and both are public.
+			// SaveJSON is also already the call this plugin writes its own
+			// status and result files with, so the secure-write path is proven.
+			// The screenshot SaveInternalFinish also takes is skipped on
+			// purpose: it only fills the scene browser's preview thumbnail.
+			if (op == "save_scene") {
+				string path = RequiredPath(cmd);
+				if (!path.ToLower().EndsWith(".json")) {
+					path = path + ".json";
+				}
+				JSONClass scene = SuperController.singleton.GetSaveJSON(null, true, true);
+				if (scene == null) {
+					throw new Exception("GetSaveJSON returned nothing - nothing to save?");
+				}
+				SuperController.singleton.SaveJSON(scene, path);
+				JSONClass data = new JSONClass();
+				data["path"] = path;
+				data["atoms"] = scene["atoms"] != null ? scene["atoms"].Count.ToString() : "0";
+				result["data"] = data;
+				return result;
+			}
+
 			if (op == "load_look") {
 				Atom person = RequiredPerson(cmd);
 				string path = RequiredPath(cmd);
@@ -2613,7 +2640,7 @@ namespace MVRPlugin {
 		protected JSONClass StatusPayload() {
 			JSONClass data = new JSONClass();
 			data["plugin"] = "VamMcpBridge";
-			data["version"] = "0.10.8";
+			data["version"] = "0.10.9";
 			data["vamRoot"] = vamRoot;
 			data["bridgeDir"] = bridgeDir;
 			if (bridgeEnabled) {

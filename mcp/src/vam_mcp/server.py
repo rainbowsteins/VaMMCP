@@ -193,6 +193,18 @@ def load_scene(path: str, merge: bool = False) -> str:
 
 
 @mcp.tool()
+def save_scene(path: str) -> str:
+    """Save the current scene to a JSON file, so what is on screen now survives a VAM restart or a crash. path is VAM-root-relative, normally "Saves/scene/<name>.json"; ".json" is appended if you leave it off, and parent folders are created by VAM's own file layer.
+
+    Two things to know. It OVERWRITES without asking: VAM's own Save button routes through a path that raises a modal "confirm" prompt when the target exists, and a headless caller has nobody to click it, so this op deliberately uses the same internal pair VAM itself writes the file with rather than that button. And it writes the scene only - VAM also drops a matching .jpg preview next to it, which this does not, so the scene browser thumbnail stays empty until you save once from the UI.
+
+    Loading a scene returns before its assets finish, and a merged environment is only in memory until you save, so save after the scene looks right rather than in the same breath as the load.
+    """
+    result = bridge.call("save_scene", timeout=180.0, path=path)
+    return _dump(result.get("data") or result)
+
+
+@mcp.tool()
 def load_look(path: str, person: str = "", keep_pose: bool = False) -> str:
     """Load an appearance/look preset onto a Person. person is the atom uid from list_persons; empty uses the first Person. Most third-party looks also ship a pose, and applying one moves and re-poses the character; pass keep_pose=True to apply only the appearance and leave the current pose alone, which is what you want when swapping outfits or makeup between shots of a posed character."""
     if path.lower().endswith(".json"):
