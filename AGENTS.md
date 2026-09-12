@@ -503,6 +503,7 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   `BooMoon:Lips Layer` clothing item drawn over them, and switching that item off let the deep red
   through immediately. Turning a colour down only ever greys a tinted texture; closing channels is
   what purifies it.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
