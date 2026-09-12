@@ -369,6 +369,49 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   what turns a roll into closed eyes. Both levers need `lookMode=None`, or the gaze system
   overwrites them on the next frame.
 
+- **Every free controller in VAM carries `Reset`.** `list_actions(query="Foot")` returns
+  `lFootControl` and `rFootControl` with a `Reset`, and pressing both puts a heeled, tip-toed foot
+  flat on the floor without touching anything else - the same action the penis controllers use.
+  Reach for it before swapping a pose: a pose rewrites every controller it carries (and re-places
+  the atom), while one `Reset` moves a single joint and leaves the expression, the fits and the
+  position alone. `RestoreAllFromDefaults` sits beside it for the stored value rather than the
+  rest pose.
+
+- **`load_look` can apply a single clothing item's own preset, and that does not touch the
+  wardrobe.** `load_clothing` means "wear this outfit" and replaces every item, so it is the wrong
+  tool for changing one garment. Load that item's `.vap` with `load_look` instead: the preset
+  carries only that item's storables, so the rest of the outfit survives. Verified with nail
+  polish - `SupaRioAmateur.Wearable_Manicures.5:/.../Wearable Manicure_Red Round.vap` set the style
+  while the bra, stockings and heels stayed on.
+
+- **When an item will not take a colour, look for colour variants inside its package.**
+  `Diffuse Color` multiplies, so black stays black: a nail mesh whose texture was a black polish
+  rendered grey no matter which tint went on. That package shipped six colourways as separate
+  presets with their own texture folders, and each folder held a `DefaultMaterial_2D_View.png` - a
+  flat picture of that colourway. Tiling the six into one sheet picked the red one at a glance, and
+  the presets' own `Diffuse Color` values confirmed the mapping (`_03` was `h 0.957 s 0.10`, the
+  pink; `_06` was `h 0.545 s 1`, the blue-green). Ship-provided variants beat tinting whenever the
+  base texture is dark.
+
+- **Bangs are separate hair items and hair packs are modular, so a swap needs explicit offs.** A
+  fringe is its own `.vam` and stacks on any base, which is how a full style is assembled
+  (`NoStage3/Hair_Long_Wavy_1_Bangs` holds `Long Wavy 1` plus `Bangs 1` and `Bangs 2`). Turning a
+  new piece on does **not** turn the old one off, and two hairstyles then render as one mesh inside
+  the other. Read `geometry.hair` for what is enabled and switch the previous pieces off in the
+  same `set_geometry_options` call.
+
+- **`Alpha Adjust` does not point the same way on every item.** On the cosmetic eye-shadow layers a
+  negative value made them opaque enough to read as makeup and `0` made them invisible; on a nail
+  overlay the same negative value turned the layer transparent. Treat the sign as per-item: step it
+  one way, look, then the other.
+
+- **An appearance preset can restore expression morphs, so re-check the face after loading one.**
+  `AA - Anger 1` read 0 once cleared and came back as 1 after an appearance preset was applied,
+  with the whole angry suite behind it - brow-down and inner-brow-down near 0.5 and
+  `Eyelids Top Down` at 0.92. Related: `Flirting`, `Flirting Feminine`/`Masculine` and
+  `asco - Bedroom Smile` also raise the outer eye corners, so a dazed, heavy-lidded look should be
+  built from `Eyelid Upper Height` alone.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
