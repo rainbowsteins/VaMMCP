@@ -412,6 +412,53 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   `asco - Bedroom Smile` also raise the outer eye corners, so a dazed, heavy-lidded look should be
   built from `Eyelid Upper Height` alone.
 
+- **A VAM mirror renders nothing until `Mirrored Surfaces Enabled` is on.** The `ReflectiveSlate`
+  atoms in a room read `on: true` with a full `MirrorRender` (`reflectionOpacity 1`,
+  `reflectionColor` white) and still show a flat dark panel, in Edit **and** Play Mode.
+  `debug_cameras` is what settles it: with the feature off the scene has only `ScreenCameraClear`,
+  `MonitorRig` and `ScreenUICamera` - **no mirror camera exists**. The switch is VAM-UI-only, under
+  `User Preferences -> Performance 2 -> Mirrored Surfaces Enabled`; no storable carries it, so an
+  MCP client can only say where to look. Once on, the reflection appears at once with no other
+  change. Two related facts: `ReflectiveSlate` exposes **no** `materials` params (only `Glass`
+  does), so its surface cannot be tinted through `set_atom_params`, and its `Texture Size` /
+  `Anti-aliasing` fields are UI-only. `MirrorRender.reflectionColor` accepts values **above 1**
+  (1.6 read back as 1.6) - the only brightness lever on the atom.
+
+- **A fringe that belongs to a hair set is cut for that set's base; a standalone fringe is not.**
+  `NoStage3/Hair_Long_Wavy_1_Bangs` ships `Long Wavy 1` plus `Bangs 1`/`Bangs 2`, while
+  `NoStage3/Hair_Long_Wavy_8` is a different sub-package: putting its `Bangs 2` on `Long Wavy 8`
+  interleaved two hairlines into one mess even though both share a creator. A fringe sold as its own
+  item (`VaMChan/Bangs/bangs 0N`, `NoStage3/Hair_Bangs_6`, `Oronan/F/F11`-`F12`) stacked cleanly on an
+  unrelated base. Read the previews before choosing: `Bangs 1` is a true blunt fringe, `Bangs 2` is
+  side-swept, `bangs 01`/`05` are near-blunt at two lengths, `bangs 04` is wispy.
+
+- **A freshly downloaded `.var` is invisible to the catalog until VAM re-indexes *and* the MCP
+  restarts.** `rescan_packages` alone is not enough: after it, `list_geometry_options` still showed
+  the old set for a nail pack, an Oronan hair pack and a cum pack; only restarting the agent side
+  made them appear. Reading the package itself always works immediately - open the `.var`, list its
+  entries and its `*.jpg` previews - so report what a download contains from the file, not the
+  catalog.
+
+- **Cum and cosmetic decals are clothing items, and they ship nearly transparent.** `Molmark` holds
+  eleven (`cum_vag_1/5/7`, `cum_anal_3`, `cum_ass` normal and `goopy`, `cumchest`, `bellycum`,
+  `mouth_chest`, `cumface_2`); `Redeyes.Yet_Another_Cum_Pack` holds 87, including seven built for the
+  penis (`Cum_cock_covered`, `Cum_cock_half_covered`, `Cum_cock2`-`5`, `cummed_cock`) and a mirrored
+  male set. At their defaults they are almost invisible - `Diffuse Color` white plus
+  `Alpha Adjust -0.5` and `Specular Intensity`/`Gloss` near 0.8 is what makes them read as cum.
+  Being clothing, a `load_clothing` outfit change wipes them, and `clear_prefix="clothing:"` takes
+  them along with the bra, stockings and nails.
+
+- **A DecalMaker layer's `sv` is its strength, and the layer named `foundation` is the face-only pale
+  base.** Raising `foundation` from 0.18 to 0.45 visibly paled the face without touching the body,
+  and lifting the eyeshadow washes to 0.80/0.85 and the liners to 1.0 gave a much heavier eye. The
+  stack is additive, so `Clear All Frames` must come first when applying one with `load_look` - and a
+  scene saved afterwards reloads with the same seven layers, not fourteen.
+
+- **`Eyes.lookMode` is runtime state, and a restart clears it.** After a VAM restart plus a scene load
+  the saved `lEye`/`rEye` rotations were still there but `lookMode` was back to its default, so the
+  gaze pulled the eyes down and it reads as the character staring at the floor. Re-running the `.vap`
+  fixes it, and it must set `lookMode: None` **and** the eyeball rotations together.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
