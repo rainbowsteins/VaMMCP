@@ -468,6 +468,41 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   gaze pulled the eyes down and it reads as the character staring at the floor. Re-running the `.vap`
   fixes it, and it must set `lookMode: None` **and** the eyeball rotations together.
 
+- **A grafted penis has no male morphs; its angle lives in the joint drives.** On a female atom
+  carrying `Stopper.AlternativeFuta` the library holds no `Erect` / `Penis` morphs at all - and
+  turning `useMaleMorphsOnFemale` on does not add them, because the graft is a mesh. The three
+  controllers do carry a **live** drive (`jointDriveSpring` 25 / 24, not 0), so
+  `set_atom_params(atom, "penisBaseControl", {"jointDriveXTarget": 45})` rotates the joint. X is the
+  tilt: **positive points it up, negative down** (verified both ways - the sign was guessed wrong
+  twice before the user read it off the screen). Y is side-to-side: -40 lengthened the shaft toward
+  the camera and +40 shortened it away. `penisBaseControl` sets the whole angle and
+  `penisMidControl` the shaft curve; `Reset` on all three restores. A pose preset carries these
+  controllers, so a pose change wipes the setting.
+
+- **Bones go crooked where morphs cannot reach, so reset the controller before setting a morph.**
+  A tongue looked lopsided while every `Tongue *` morph read 0; the cause was the tongue **bone**,
+  and `RestoreAllFromDefaults` on `TongueControl` straightened it. The mouth behaved the same way:
+  zeroing `Viseme Mouth Open` / `Mouth Open` / the tongue morphs left it open until `JawControl`,
+  `mouth`, `lowerJaw` and `upperJaw` were each restored. Order matters - a morph re-poses the bone,
+  so restore first and set morphs after.
+
+- **`DecalHead` has an exact shape, and getting it wrong fails silently.** The storable's own level
+  holds `id`, `enabled`, `pluginLabel`, **`SaveVersion`** and **`DecalHead`**, and `DecalHead` is an
+  array of single-object arrays; `link` and `tbgid` are strings (`"0"`), not numbers. Wrapping
+  `SaveVersion` and `DecalHead` together inside one nested object - the obvious-looking layout -
+  makes `load_look` report success and leave the stack **empty**. Always read the layer count back
+  after loading. The `plugin#N` index is per scene (the same DecalMaker was `plugin#1_` in one scene
+  and `plugin#0_` in the next), so read it from `get_appearance` before writing a `.vap` for it. A
+  `Clear All Frames` followed immediately by a load also leaves the face a flat colour mask for a few
+  seconds while the decal textures stream in - wait before judging it.
+
+- **Two levers when a colour will not go deep enough.** `col` on a decal layer **multiplies** the
+  texture, so a pink lip texture times a dark red gives grey-pink no matter how dark the red is:
+  zero the channels you do not want (`0.4,0,0`) and the result can only be red. And when two
+  overlays cover the same feature, the upper one wins - the lips would not darken past the
+  `BooMoon:Lips Layer` clothing item drawn over them, and switching that item off let the deep red
+  through immediately. Turning a colour down only ever greys a tinted texture; closing channels is
+  what purifies it.
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
