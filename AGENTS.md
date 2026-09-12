@@ -259,6 +259,101 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   A plugin compiles asynchronously, so `add_plugin` only reports `ready=true` once the storable
   appears; `ready=false` usually means VAM is showing a permission dialog that needs a click.
 
+- **Never re-serialise a VAM scene file with a script.** Reading a `Saves/scene/*.json` into
+  Python, editing it and dumping it back produced a file that still parsed as valid JSON and
+  still loaded - but VAM silently dropped the front of the `atoms` array, so the room and its
+  lights were gone and every capture came back a near-black frame with only the two people in
+  it. Edit scene JSON as **plain text** instead: back the file up first, replace the exact
+  strings you need with `re.subn`, assert every replacement count is what you expect, and leave
+  the rest of the bytes alone. A structural change (reordering array entries) is not worth the
+  re-dump - find a text-level edit that gets the same effect.
+- **`save_scene` lands on disk asynchronously, up to ~45 s later.** Reading the file straight
+  after the call shows the *old* mtime and size and looks exactly like a failed save; a check at
+  20 s still showed the old file, and the write appeared at ~45 s. Poll the mtime/size until it
+  changes before verifying, or the round is wasted and the wrong conclusion gets reported.
+- **`save_scene` writes no preview `.jpg`**, so the scene shows as a blank tile in VAM's scene
+  browser. A same-named 512x288 jpg beside the JSON gives it a thumbnail (crop the 3D area out
+  of `preview.png`), or save once from VAM's own UI, which writes its own preview and its own
+  file format.
+- **vamX picks its male and female by hardcoded atom uids**: `com.DEFAULT_FEMALE = "Person"`,
+  `com.DEFAULT_MALE = "Person#2"` (and `Person3some` for a third). `JSONMaleAtomUID` /
+  `JSONFemaleAtomUID` in its `vamX.BL_GUI` storable are an **output** - `SetVal(com.maleAtom.uid)`
+  rewrites them from its internal state when a scene loads - so editing them in a saved scene
+  does nothing at all. The lever is which atom carries which uid. Two mechanisms could produce
+  the pairing and the evidence seen so far does not separate them - VAM may honour the `id`
+  written in the scene file, or vamX may rename the atoms to its default uids after the load
+  from whatever assignment it made. Both routes agree on the practical rule, so do not claim
+  which one it is. Verified fix for a reversed couple: swap the two Person atoms' `"id"`
+  strings as text (`"id" : "Person"` <-> `"id" : "Person#2"`) plus any `parentAtom` that
+  pointed at one of them, then reload. Confirm
+  with `list_plugins`: the atom named `Person` must carry the female character's plugin and
+  `Person#2` the male's. vamX renames atoms to those uids itself after a load, so re-check the
+  pairing after every scene load instead of assuming it survived.
+
+- `Stopper.AlternativeFuta` gives a **female** atom male genitalia by grafting a mesh into the
+  skin's second graft slot. Its own thread requires `useMaleMorphsOnFemale = true` (or the penis
+  morphs will not save) and `Auto Leg Bend Fix Morphs` **off**; both are plain bools on the
+  person's `geometry` storable, both are reachable through `set_bool_param`, and that tool reads
+  the value back - so a wrong parameter name is visible rather than silent. The plugin rewrites
+  the skin, so any skin or texture change needs a disable/enable cycle on its `enabled` bool to
+  rebuild the graft. It is a normal atom plugin: a scene carries it, an appearance preset cannot,
+  so `list_plugins` after every `load_character` and `add_plugin` when it is absent.
+- **An AltFuta texture pack only works on the body it was cut for.** The `WeebU.AltFuta-<name>`
+  packs ship one torso and one genitals texture per source character. The wrong character's torso
+  texture paints white blotches across the body, and mixing packs between slots paints black
+  wedges at the graft. The pack's own instructions are: **the torso and genitals slots both take
+  the pack's `torso` texture**, and the `genitals*` files go into the plugin's penis/pelvis
+  material options. Ranking packs by average skin tone is not enough - only a pack whose UV
+  layout matches the body renders correctly, which here meant the pack derived from the same
+  character as the face and limbs.
+
+- **A pose preset carries the atom's root position and rotation.** `Preset_Kneeling 01` moved Mike
+  to `(0.156, 0.599, -0.030)` with `rx 40.7`, and a vamX sitting preset teleported Ayaka and
+  changed his `ry` from 146 to 334. `load_pose` therefore both poses the body **and** re-places the
+  character, and it only writes the controllers it carries: a kneeling pose applied to a root still
+  tipped over from a lying pose leaves the body kneeling with the whole atom at 40 degrees. Read
+  `get_position` after every `load_pose`, then re-apply the placement with `move_person` - `rx` and
+  `rz` back to 0 stands it upright - and leave that call until last.
+
+- **Pose packs ship the creator's own preview JPGs.** `vamX.1.52.var` holds
+  `.../_POSE LIBRARY/Sitting - klphgz+bill_prime/Preset_001.vap` with a `Preset_001.jpg` beside it.
+  Extracting 36 of those and tiling them into one contact sheet picked the only cross-legged pose
+  out of the pack on the first try, where the 25 identically-named `Preset_0NN` entries give a name
+  nothing to choose on. Read the thumbnails before putting candidates on a character - the same
+  rule already written for hair and clothing.
+
+- **A pose carries the male genital controllers, and an over-extended penis is the symptom.**
+  `penisBaseControl`, `penisMidControl` and `penisTipControl` are ordinary free controllers, so a
+  pose that points the tip away from the base stretches the mesh between them. Each carries `Reset`
+  and `RestoreAllFromDefaults` in `list_actions`; pressing `Reset` on all three restores the
+  proportions at once, and `SaveToStore1/2/3` stores a known-good state to return to.
+
+- **`Alpha Adjust` on a material: positive is sheerer, negative is more opaque.** The note above
+  ("`Alpha Adjust` above zero plus a low `Specular Intensity` is what makes legwear read as nylon")
+  is the sheer direction. The cosmetic-layer eye shadows (`paledriver:Eyes upper shadow
+  MaterialCombined` and its siblings) ship with a very low alpha, are invisible at `0`, and read as
+  real makeup at `-0.7`. Setting it back to `0` while chasing a colour silently removed them.
+
+- **A plugin that binds a material at init only renders after a VAM restart.** The DecalMaker binds
+  each frame's renderer once, at plugin init (`dMFrames.DMRender.Init(material, ...)` in
+  `DMFramesManager.cs`), so adding it mid-session, toggling its `enabled`, or reloading the scene
+  leaves it holding a stale material: the `DecalHead` stack reads back complete and correct (format
+  verified against the plugin's own `V3toV4` converter, textures verified present in the package)
+  and nothing renders. **Save the scene, restart VAM, load the scene** - the plugin then initialises
+  in the right order and the makeup and the AltFuta graft are both there. A mid-session
+  disable/enable cycle rebuilds the graft's data but not the decal renderer's binding, so treat the
+  cycle above as necessary but not sufficient.
+
+- **Face morphs are driven by other systems, and three of them overwrite what you set.** `LipSync`
+  (a plain bool on the Person) drives `Mouth Open`, `Mouth Open Wide` and the tongue from audio, so
+  a value written with `set_morphs` is back to its driven value within seconds -
+  `set_bool_param(storable="LipSync", param="enabled", value=false)` stops it. vamX's action system
+  drives the jaw the same way while an action runs, so stop the action too. `Eyes.lookMode` at
+  `Target` pins the gaze to a target object and cancels every eye morph: `asco - Look Up` and the
+  `NN-Eyes Rolling` morphs sit at 1 and change nothing until `lookMode` is `None`, which frees the
+  eyeballs for a roll. `lock_head(locked=false)` re-enables the camera gaze and clears `lookMode`
+  back to its default.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
