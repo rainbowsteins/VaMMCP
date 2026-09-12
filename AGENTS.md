@@ -18,6 +18,7 @@ It **only** searches and loads files already on the user's disk (scenes, looks, 
   `[System.IO.File]::WriteAllText($p, $txt, (New-Object System.Text.UTF8Encoding($false)))`. Verify
   by reading the first bytes back - a clean file starts `35 32 65 71` (`# AGE`), never `239 187 191`
   (a UTF-8 BOM). Keep the `.bak` outside the repo so it cannot be committed.
+
 ## VAM_ROOT (required)
 
 `VAM_ROOT` is the folder that contains `VaM.exe`.
