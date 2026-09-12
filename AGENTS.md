@@ -10,6 +10,14 @@ Unofficial Virt-A-Mate controller: Python MCP server `vam-mcp` plus session plug
 
 It **only** searches and loads files already on the user's disk (scenes, looks, clothing, poses, face morphs). It does **not** generate characters, clothes, or Hub downloads.
 
+- **Editing this file from Windows PowerShell 5.1 corrupts its Chinese text.** `Get-Content -Raw`
+  without `-Encoding utf8` reads the UTF-8 bytes as the ANSI code page, turning every CJK character
+  into mojibake, and `Set-Content -Encoding UTF8` then writes that back **with a BOM**. The result
+  still parses as markdown and its ASCII is untouched, so it passes a glance. Use the .NET calls with
+  an explicit encoding instead: `[System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)` and
+  `[System.IO.File]::WriteAllText($p, $txt, (New-Object System.Text.UTF8Encoding($false)))`. Verify
+  by reading the first bytes back - a clean file starts `35 32 65 71` (`# AGE`), never `239 187 191`
+  (a UTF-8 BOM). Keep the `.bak` outside the repo so it cannot be committed.
 ## VAM_ROOT (required)
 
 `VAM_ROOT` is the folder that contains `VaM.exe`.
