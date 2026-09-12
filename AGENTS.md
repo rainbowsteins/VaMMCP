@@ -351,8 +351,23 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   drives the jaw the same way while an action runs, so stop the action too. `Eyes.lookMode` at
   `Target` pins the gaze to a target object and cancels every eye morph: `asco - Look Up` and the
   `NN-Eyes Rolling` morphs sit at 1 and change nothing until `lookMode` is `None`, which frees the
-  eyeballs for a roll. `lock_head(locked=false)` re-enables the camera gaze and clears `lookMode`
-  back to its default.
+  eyeballs for a roll. **`lock_head(locked=false)` re-enables the camera gaze and clears `lookMode`
+  back to its default, so it undoes that fix**, and a `lock_head(true)` afterwards freezes the eyes
+  wherever the glance had just pulled them - on a lying character that is the lower edge of the
+  socket, which reads as "the irises are gone". Settle a gaze in this order instead: aim the
+  monitor camera where the character should look, `lock_head(false)`, wait for the head and eyes to
+  arrive, then `lock_head(true)`. For eyes that simply face forward, set `lookMode` **last** and do
+  not touch `lock_head` afterwards. Both orders were got wrong twice in one session.
+
+- **A neutral eye is `lEye` and `rEye` at rotation 0 plus `asco - Look Up` at 0.** The two eyeballs
+  are ordinary storables carrying `position` and `rotation`, and they are the only lever for the
+  horizontal direction: there is no left/right look morph - `asco - Look Up` is the entire
+  `_Expressions/asco` set that answers to "Look". A `.vap` setting both `lEye` and `rEye` to
+  `rotation 0,0,0` centres the irises, and `asco - Look Up` then sets the pitch: 0 is neutral (and
+  reads slightly down), 1 is clearly up, and the morph accepts up to 2. It pitches the eyeballs
+  without touching the lids, unlike `02-` and `08-Eyes Rolling`, which also squeeze them and are
+  what turns a roll into closed eyes. Both levers need `lookMode=None`, or the gaze system
+  overwrites them on the next frame.
 
 ## Downloading from the Hub
 
