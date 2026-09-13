@@ -504,6 +504,17 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   through immediately. Turning a colour down only ever greys a tinted texture; closing channels is
   what purifies it.
 
+- **A limb controller's `jointDriveXTarget` reports the live joint angle; it does not pose the
+  limb.** A freshly added Person stood in VAM's A-pose with `lArmControl.jointDriveXTarget` reading
+  `-53.1301` - VAM's `atan(4/3)` shoulder constant - and the arm would not move: writing `0`
+  changed nothing on screen, and writing `-90` read back as `-75` on the left and `-30` on the
+  right. The value tracks the joint's current rotation, which the sibling `lArmAnimation` /
+  `rArmAnimation` storable holds, so a written target does not survive. Pose a limb with
+  `load_pose`. The grafted penis is the exception that makes the drive look general - its three
+  controllers do accept a written target and hold it. Pick the pose from names first and previews
+  second: `list_poses(query="male")` found `Preset_C&G Standing Male` for "arms down and
+  masculine", where the all-female `klphgz` standing pack offered only hip-shifted stances.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
