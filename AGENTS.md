@@ -515,6 +515,33 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   second: `list_poses(query="male")` found `Preset_C&G Standing Male` for "arms down and
   masculine", where the all-female `klphgz` standing pack offered only hip-shifted stances.
 
+- **`save_character` rejects a non-ASCII name, and the character that was not saved is simply gone.**
+  `save_character(name="Korean femboy in Chinese")` came back `ok: false` with "name must contain
+  letters, digits, spaces, _ or -", so nothing was written - and a `load_scene` in the same batch
+  replaced the scene a moment later and took the unsaved atom with it. Use an ASCII name, and when a
+  `load_scene` follows, check the save returned `ok: true` first: a rejected save looks like any other
+  call that has already gone by.
+
+- **`add_person` creates a MALE atom, and `useFemaleMorphsOnMale` does not merge the female library.**
+  A fresh atom reports `total: 2161` morphs - the male set - and neither `Flat Chested` nor any
+  female-registered morph resolves, so a femboy cannot be shaped on it. Setting
+  `useFemaleMorphsOnMale = true` with `set_bool_param` reads back `true` and leaves the total at 2161:
+  it governs what the AltFuta graft saves, not what loads.
+
+- **Loading a character whose preset says `Female Custom` converts the atom.** After
+  `load_character("Ayaka JK Femboy")` onto that male atom the morph total went `2161 -> 3915`, and
+  `Flat Chested` and `Hiroko Tanaka by xxxa - Complete` both resolved. The whole female set arrives
+  with the conversion, so this is the route to any female-bodied character on a fresh atom:
+  `add_person` -> `add_plugin("decalmaker")` -> `load_character(<female-based character>)`.
+
+- **Some Hub characters ship only a scene, and some ship a whole face as one morph.** 
+  `MonsterShinkai.Senna.1` and `TRASHINATOR.so_young_appearance_look_preset.2` hold
+  `Saves/scene/*.json` and no `Appearance/*.vap`, so `load_look` has nothing to open - load the scene,
+  `save_character` its Person, then reload that name. Read the package before assuming, because the
+  payoff can be large: Senna's appearance was `Senna-Head=1` plus `Senna-Body=1`, so a face swap was
+  one `set_morphs` value with the body untouched. `save_character` keeps the DecalMaker layers as well
+  (117 storables against Ayaka's 85), so a rebuilt character comes back made-up.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the
