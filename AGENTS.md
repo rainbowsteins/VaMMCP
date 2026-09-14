@@ -535,6 +535,18 @@ Hub URL yourself and never sign in on their behalf.
 - A filter that did not match reports the valid values instead of failing
   silently; `hub_info` dumps every chooser and its allowed values.
 
+- **A Hub search that returns the same stale cards is a stuck filter, not a missing resource - press
+  `Reset Filters`.** Search for "bedroom" went from `matched 48 / Total 101` to `Total 1` and then
+  `Total 0`, and every query came back with the same three already-installed cards (`Cozy Apartment`
+  twice plus `Cozy Room 1`). It was not a phrase-versus-keyword problem: single words that had worked
+  minutes earlier (`gamer`, 25 results) also went to zero, so an exact-title search returning
+  `Total 0` looked exactly like a resource that had been delisted. `hub_info` lists the Hub panel's
+  own actions, and `ResetFilters` is the one that clears it - after the user pressed it, all three
+  title searches returned `Total 1` with the right card first and `download_resource` found its
+  detail panel. Two nearby traps: `download_resource` needs that card open, so search the title
+  immediately before the call and in that order, and its `resource_id` must be a **string** -
+  passing the integer is rejected by argument validation before any panel check runs.
+
 ## If MCP is not connected
 
 Install the Python package as above and attach `vam-mcp` to this agent. `VAM_ROOT` must be the folder the user named (the one with `VaM.exe`). Do not drive VAM by editing Unity files or sending raw JSON unless they explicitly ask you to debug the file bridge.
