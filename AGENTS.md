@@ -542,6 +542,245 @@ Then point the current MCP client at that venv Python with env `VAM_ROOT` set to
   one `set_morphs` value with the body untouched. `save_character` keeps the DecalMaker layers as well
   (117 storables against Ayaka's 85), so a rebuilt character comes back made-up.
 
+- **`list_geometry_options` defaults to `prefix="hair:"`, so a clothing query silently matches
+  nothing.** `query="nail"` came back `matched 0` on a character wearing a full outfit and a nail
+  item that was plainly installed; the same query with `prefix="clothing:"` returned ten rows. The
+  `total` field is the whole geometry tree either way, so a zero `matched` reads like an absent
+  package. Always pass the prefix you mean.
+
+- **The Person's skin textures live on a storable whose id is literally `textures`, and its slots are
+  `<region>{Diffuse,Specular,Gloss,Normal,Detail,Decal}Url`.** The regions are `face`, `torso`,
+  `limbs` and `genitals`, so a nail polish is `limbsDecalUrl` and a makeup decal is `faceDecalUrl`.
+  Those are `JSONStorableUrl`, not `JSONStorableString`, so `get_atom_params` reports an empty
+  `strings` object for the storable - the only read is a `.vap` and the only write is a `.vap` with
+  `setUnlistedParamsToDefault: false` naming just that one slot. Verified with `DJ.NailPolish.1`,
+  which ships 40 decal PNGs and **no** preset of its own: a two-line `.vap` setting
+  `limbsDecalUrl` to `.../Nail Polish Decals/All other skins/nails19 - limbs decal.png` painted all
+  ten fingernails solid black. The pack has an `Olympia (female 3)` folder beside `All other skins`
+  for the other UV layout, and per-decal average colour is what identifies them - `nails19` measured
+  RGB (29,26,27), `nails17` (36,54,65), `nails1` (244,244,244). Measure or tile; the names are
+  numbered only. Keep that two-line `.vap` on disk - the slot is restored by a **scene or character
+  load from before it was set**, so the nails silently vanish again after any reload and the fix is
+  to re-run the `.vap`, not to re-download anything. `_nails_black_decal.vap` in
+  `Custom/Atom/Person/Appearance/VamMcp/` is that file.
+
+- **A decal on `limbsDecalUrl` is the way to short nails; a nail mesh is not.** `xxxa.GelNails` is a
+  clothing item whose five presets `A`-`E` are colourways (`_D` is plain black), and it renders as
+  medium almond nails no matter what - its length is driven, not morphable. The item ships
+  `Stopper.ClothingDrivenMorphs` in its `.default.clothingplugins`, and that plugin re-drives
+  `GelNails Overall Size` / `Other Size` / `Thumb Size` from the cloth proxy, so `set_morphs` writes
+  `0.6` and reads `0.6` back with **no change on screen**. Turning the item off and painting the
+  natural nail with the decal above is what produced the short black nails the user actually wanted.
+
+- **`SupaRioAmateur.Wearable_Manicures` is one mesh with five material storables, and the five
+  colourways are texture folders, not tints.** Per hand region the storables are
+  `...MaterialIndex`, `...MaterialMid`, `...MaterialRing`, `...MaterialPinky`, `...MaterialThumb`,
+  each with its own `Specular Intensity` and `Gloss`; setting one leaves the other four at the
+  preset's blazing `Specular Intensity 10`, which is why a first pass at toning the shine down
+  looked like nothing happened. The colourways map to `Tex/Glitter`, `Tex/Carbon Fiber`,
+  `Tex/Gold Scale`, `Tex/Steel Blood` and `Tex/American`; **Black Illusion is the `Glitter` set with
+  `Diffuse Color v = 0.078`**, and its gold sparkle is the `Glitter_Specular.jpg` dot map, not the
+  diffuse. Two traps: the manicure is long whatever you pick, and the `Carbon Fiber` preset rendered
+  **near-white** on this character despite a black diffuse texture - the only difference from the
+  colourways that worked is the space in its `Tex/Carbon Fiber/` folder name, so check a
+  space-named texture folder before trusting it.
+
+- **A male face's angularity is a fixed set of jaw and cheek morphs, and they go on after the face
+  swap, not before.** `Jaw Square`, `Jaw Line Depth`, `Jaw Define`, `Chin Square` to 1.0,
+  `Jaw Bone Definition` 0.9, `Cheek Bone Define ` (note the trailing space) 1.0, `Jaw Corner Width`
+  0.7, `Jaw Corner Shape` and `Jaw Angle` 0.6, with `Cheek Bones Size` 0, `Jaw Size` 0 and
+  `Cheek Bones Round` about -0.2 to slim the skull so the angles read. `Cheek Bones Round` at -0.45
+  is the value for masculinising a *female* face and thins the cheeks too far on one that is already
+  male. A nose is `Nose Bridge Height` 0.6, `Nose Bridge Height 2` 0.4, `Nose Bridge Depth` 0.5,
+  `Nose Depth` 0.4, `Nose Bridge Curve` 0.2, `Nose Bridge Width` -0.3, `Nose Flesh Size` -0.15.
+
+- **On a female atom the male chest is `G2M Chest`, and `Flat Chested` is what digs the pit.** A
+  femboy chest wants `G2M Chest` 0.6-0.9 for the pec shelf, `Breasts Size` 0.2-0.25, `Breasts
+  Natural` 0.3-0.35, `Breasts Perk` 0.2-0.3, and `Flat Chested` only 0.2-0.3: at 1.0 it caves the
+  chest into a concave dent rather than flattening it. `Chest Smooth Center`, `Breasts Flatten L`
+  and `Breasts Flatten R` do not exist on this library and come back in `missing`.
+
+- **Nipple and areola morphs stack across authors, so use one family only.** `Nipple Length`,
+  `Nipples Depth`, `Nipples Size`, `Nipple Diameter`, `Areolae Perk` and `Areola Depth` are the
+  native set; `Nipple`, `HS Nipples Size`, `Nipples On`, `Nipple big`, `Natural Nipples`,
+  `Riley Nipples` and `Nipples_Basic` are other authors' versions of the same feature. Setting them
+  together rendered several separate protrusions on one breast. Positive protrudes and negative
+  pushes in - `Ayaka JK Femboy` flattens deliberately with `Nipple Length -0.4`. The areola's
+  **colour** is in the skin texture and no morph changes it; `Areola_Diameter`, `Areola Depth`,
+  `Areolae Perk` and `Areola Puffy Edge` only move the shape. `Blush.png` in
+  `vamX/Riddler/Skin 8 4k/Decals/` is a pair of **areola** decals, not a cheek blush - it is already
+  layer 7 of Ayaka's DecalMaker stack at `sv 0.3`, and an added layer at `sv 0.85` with
+  `col 0.85,0.3,0.3` is what made them visible.
+
+- **On a female atom the AltFuta graft is the one part that cannot be reshaped.** `list_morphs` matches
+  zero for `Scrotum`, `Testicle`, `Ball` and `Sack`, and the `Gen1`/`Gen2`/`Gen3` chain carries no
+  drive params, so the scrotum's size is fixed. The AltFuta plugin itself exposes seven floats
+  (`Bone+Mesh Y Offset`, `Bone+Mesh Z Offset`, `Mesh Y Offset`, `Mesh Z Offset`, `Hide Perimeum`,
+  `Gap Fix`, `Hide Vagina`) and nothing else. Length and angle live in
+  `penisBaseControl`/`penisMidControl`/`penisTipControl` - `jointDriveYTarget` positive shortens,
+  `jointDriveXTarget` positive lifts.
+
+- **A real male atom has a full `Morphs/Scrotum` family; only the AltFuta graft does not.** The
+  earlier "the scrotum cannot be scaled" note is true of the graft on a female atom and **false on
+  `Person#2`**, where the library is the 2179-morph male set and region `Morphs/Scrotum` holds
+  `Sc_Small`, `Sc_Adhered`, `Sc_Width`, `Sc_Depth`, `Sc_Globe`, `Sc_Pendulous`, `Sc_Front_Bulge`,
+  `Sc_Front_Back`, `Sc_Left_Right`, `Sc_Twist`, `Sc_Define`, `Sc_Smooth_Back`, `Sc_Pointed`,
+  `Sc_Castrate` and `Sc_Flag`, with `Morphs/Glans` (`Gl_Small`, `Gl_Short`, `Gl_Width`, `Gl_Big`,
+  `Gl_Rim`, …), `Morphs/Shaft` (`Sh_Length`, `Sh_Girth`, `Sh_Girth_Base`, `Sh_Girth_XL`,
+  `Sh_Massive`, `Sh_Height`, `Sh_Taper`, `Sh_Flat_Top`) and `Morphs/Foreskin` (`Frsk_Length`,
+  `Frsk_Globe`, …) beside it.
+  Positive `Sc_Small` shrinks and positive `Sc_Adhered` tucks the pouch up against the body - the
+  pair at `0.8` / `0.4` fixed a scrotum that was cutting into the thigh in a doggy pose.
+  **The shaft's sign is the other way round: `Sh_Length` and `Sh_Girth` shrink at `-1`, neutral is
+  `0`.** Settled by rendering the same animation phase at `-1` and then at `0` back to back - at `0`
+  the shaft ran visibly longer and thicker. That pack has no `Sh_Small` / `Sh_Thin`, so a reader
+  hunting an explicitly-named shrink morph finds none and wrongly concludes the shaft is fixed.
+  Shrinking the whole penis is `Penis Length` **2 -> 0** (the `Actor` pack's own value on this
+  character, and the single biggest lever) plus `Sh_Length` / `Sh_Girth` `-1`, with
+  `Gl_Small` / `Gl_Short` `0.6` for the head. Three
+  neighbouring packs also touch the same anatomy and are easy to trip over when searching:
+  `Actor` (`Penis Length` is already **2** on this character, plus `Penis Width`, `Nuts Hang`,
+  `Nuts blend`), `Genitalia_Reloaded-Lite` (`bigpenis`, `bigballs`), `Genitals` (`large nuts`,
+  `Shaft_Balloon`) and `TenStrip` (`Gens - …`). Name searches that miss are usually looking in the
+  wrong pack, not at a missing morph.
+
+- **The expression alias table is shared, but the morphs behind it are not.** `set_expression(name="smile")`
+  resolves to `AA - Smile 1` on **every** atom, and a male atom does not have it: the call came back
+  with `"missing": ["AA - Smile 1"]`, `"applied": []` and `"cleared": []`, so it did nothing while
+  reporting success. `list_expressions` on the male returned 19 real smile morphs instead -
+  `asco - Closed Smile`, `asco - Model Smile`, `asco - Teeth Smile`, `AA Smile 4` / `AA Smile 5`,
+  the `AA 2022 ...` set - and `set_expression(name="asco - Closed Smile")` applied cleanly and read
+  back 1. Always check `missing` in the reply, and pass a real morph name from `list_expressions` on
+  the atom you are actually changing.
+
+- **A shoe that has come off its foot is a collapsed cloth sim, not a foot-size problem.** The
+  female's `Korisaki:PlatformHeels7in` items read `on: true` while both shoes lay on the mattress
+  beside her bare feet - the same failure the dress skirt had. `Korisaki:PlatformHeelBase3inSim`
+  carries a `Reset` action (alongside the usual `RestoreAllFromDefaults`), and that is the fix.
+  Shrinking the foot cannot help, because the shoe mesh is not following the foot at all. The body
+  morphs that *do* shrink a foot are `Foot petite`, `foot width` (`Legs&Feet_Reloaded-Lite`),
+  `Foot Length` and `Foot Length Left`/`Right` (`Feet`); reach for them only when the foot is
+  genuinely bursting out of a shoe that is still on it.
+
+- **Clearing a face decal to remove makeup can flatten the whole face if the tool also clears
+  `faceDetailUrl`.** `Custom/Atom/Person/Appearance/VamMcp/_futa_nomakeup.vap` sets **both**
+  `faceDecalUrl: ""` and `faceDetailUrl: ""`, and the detail slot is the skin's fine texture, not
+  makeup - after running it on the male the face read as a flat, pale, textureless mask. Strip
+  makeup with `call_action` on the DecalMaker's `Clear All Frames` and leave `faceDetailUrl` alone;
+  if it is already cleared, the fix is a `load_character` (which restores `textures`), not a morph.
+
+- **Rebuilding "female base, male body and face" on one atom.** The recipe that works, in order:
+  `load_character("Ayaka JK Femboy")` for the `Female Custom` body and its matching skin (this is
+  also what restores the skin textures), then `Hyungjoon-Head=1` + `Hyungjoon-Body=1` with the Ayaka
+  face morphs zeroed (`Hiroko Tanaka by xxxa - Complete` / `- Genital` = 0), then the muscle set
+  (`Shoulder Width` 0.75, `G2M Chest` 0.9, `Chest Upper Width` 0.6, `Chest Height` 0.4,
+  `Athletic` 1, `Abs Muscle` / `Abs Definition` 0.9, `Ribs Definition` 0.4,
+  `Bodybuilder Details` 0.8, `Waist Width` 0.2, `Hip Size` -0.3, `Glute smaller` 0.4,
+  `Body Size` 0.8, `Upper Arms Size` 0.8, `Forearms Size` 0.6, `Forearms Muscles` 0.7,
+  `Thigh full` 0.8, `Calf full` 0.6, `Breasts Size` 0, `Breasts Small` 0.6,
+  `Flat Chested` 0.3, and the femboy's nipple/areola negatives back to 0), then the jaw and nose
+  sets. **`Hyungjoon Genital` does not exist on a female atom** - it comes back in `missing`, and
+  the genitals are the AltFuta graft instead. Every one of these is a morph, so a `load_character`
+  after them undoes the whole thing.
+
+- **A male head morph cannot build a male face on a female head, and zeroing the female face morph
+  does not substitute for one.** On the `Female Custom` atom, `Hyungjoon-Head=1` sat next to
+  `Hiroko Tanaka by xxxa - Complete` with no visible change either way, because the HyungJoon deltas
+  are authored for the male G2M head mesh - merged into the female list under `_MorphMerger`, they
+  land on a different vertex layout. The result is the stock female head with whatever makeup the
+  skin carries, i.e. a woman's face on a male body. `Ayaka Male` is the installed answer to
+  "female base, male look": it is `Female Custom` with the `Hiroko Tanaka by xxxa` face plus a full
+  muscle set, and it is the character to load for that request. A genuine HyungJoon face needs a
+  **male** atom (`load_character("HyungJoon")`, `Male Custom`), which then has no female body for
+  the AltFuta graft.
+
+- **Clearing makeup can look like it failed when the plugin only binds at init.** `Clear All Frames`
+  and a `faceDecalUrl` wipe both ran on the rebuilt male and the purple eyeshadow and dark lips were
+  still there, byte for byte the same as the source character's - the DecalMaker was still rendering
+  its pre-rebuild material binding. Same root cause as the graft that stopped drawing after a
+  `load_character` restored the skin textures. **Save the scene, restart VaMX, load it** and both
+  come right; do not keep re-clearing, and do not conclude the makeup lives in the skin texture.
+
+- **A male atom's clothing tree is much smaller, and `WeebU`'s futa sets are where its lingerie
+  lives.** `list_geometry_options(prefix="clothing:")` reports `total: 1178` on a `Male Custom` atom
+  against 1659 on a female one, and a `query="Stocking"` finds exactly **three** items - the
+  `WeebU.Futa_Lingerie_set.1` `W-Stockings`, `vamX:SS Stocking Futa` (fishnet) and a Yaneks Halloween
+  pair - while `query="Bra"` finds `WeebU:W-Bra` and `WeebU:W-Bra3` beside a pile of bracelets. Both
+  `WeebU` items ship full PBR map sets (`Wbra D/G/N/S`, `Wsocks D/G/N/S`), which is what makes the
+  glossy-black recipe bite; `W-Stockings` and `W-Bra` share the `Custom/Clothing/Male/WeebU/` folder
+  and the `WeebU:<item>MaterialCombined` storable id pattern, so the same `Diffuse Color
+  0,0,0.05` / `Specular Intensity` 2.2 / `Gloss` 8.5 values give a matching set on both. The
+  fishnet `SS Stocking Futa` cannot be made glossy - the maps are a mesh weave, not a surface.
+
+- **On the male `HyungJoon` head the DecalMaker stack lands low, and the two layer groups need
+  different `texTransY` values.** With every layer at `scale 1,1` and `texTransY 0`, the eyeshadow
+  sat as a black blob on the cheek under each eye and the lipstick sat on the chin. Negative
+  `texTransY` moves a layer **up**: `-0.04` on `liner` and `-0.045` on `purple wash` / `purple
+  build` put the eyeshadow correctly on the lids and the result reads as genuinely heavy eye
+  makeup. `Lips.png` is far more sensitive - `0` is the chin and `-0.05` is the **nose**, so the
+  mouth is around `-0.011` to `-0.022`, and `texScale` 0.5-0.55 keeps the decal the size of the
+  lips. Change the eye layers and the lip layer separately; one shared offset cannot fit both.
+  Where the stack lands is a property of the head, so a `.vap` written for one face needs its
+  live `texTransY_*` re-tuned on the next.
+
+- **A vamX animation makes every capture a different frame.** With vamX's action panel open on
+  `Thrust Male` and playing, the two atoms move between `capture_view` calls, so a before/after
+  comparison of the same body part lands on a different pose and reads as "the morph did nothing".
+  Judge an animated scene by the value read back from `set_morphs` plus one frame that happens to
+  show the part, and do not re-tune a morph against a moving target.
+
+- **A DecalMaker layer can be retuned live, and the layer name keeps any spaces it has.**
+  `strength_<layer>_face_DecalTex`, `texScale_<layer>_face_DecalTex`, `texRot_`, `texTransX_`,
+  `texTransY_`, `texCnterX_`, `texCnterY_` are all writable with `set_atom_params` and read back, so
+  a stack does not need a new `.vap` per iteration. `texScale_purple wash_face_DecalTex` works and
+  `texScale_purple_wash_face_DecalTex` comes back `no such param` - do not tidy the space away. The
+  alignment levers are `texScale` and `texTransY` (positive is down), not the layer's `data`; a
+  `scale 0.7` that was right on one head needed to become 1.0 on `HyungJoon`.
+
+- **A DecalMaker layer is painted in the source head's UV, so a decal cut for another head never
+  lines up.** `Lips.png` from `vamX/Riddler/Skin 8 4k/Decals/` lands as a small red ring beside the
+  nose on a `HyungJoon-Head` face at every `texScale` and `texTransY` tried; the DecalMaker has no
+  projection mode, so there is no setting that fixes it. Use the face's own lip colour, or a
+  cosmetic **clothing** layer (`BooMoon:Lips Layer`, `paledriver:Eyes upper shadow`) - those follow
+  the head mesh and cannot misregister. The same applies to eyeshadow: it can be made heavier with
+  `sv` and dropped into the socket with `texTransY`, but it stays the source head's shape.
+
+- **A garment with several materials needs every one of them changed.** `Diffuse Color` on a single
+  `Material*` storable leaves the rest of the piece at its original look. Seen on
+  `YameteOuji:Under_BraLowAMaterialBase` + `MaterialBow`, `GeeMan55:Underwire
+  BraMaterialCombined`, `NoOC:SailorLingerieMaterialTop`/`Skirt`/`Socks` and `Mr_Lee:Stockings -
+  Pantyhose ...MaterialCombined`. Glossy black on a light-textured item is `Diffuse Color`
+  `0,0,0.05-0.06` with `Specular Intensity` 1.6-2.4, `Gloss` 8-9, `Diffuse Bumpiness` 0.03-0.05 and
+  `Specular Bumpiness` 0.15-0.2; a dark or gold texture will not tint.
+
+- **Swapping the skin preset is what paints white blotches on the body, not the morphs.**
+  `Riddler.Skin_2b_4k`, `ICannotDie.Preset_Kayla Female` and `vamX.Preset_Bamair1984 AGL` each left a
+  white patch on the left shoulder and upper arm on a body whose own skin preset had been fine, and
+  `Hyungjoon-Body` was blamed for it until the character's own matching skin was loaded back - the
+  patch was then absent with `Hyungjoon-Body` still at 1. The wrong character's torso texture does
+  not fit the UV and paints over it. A white stripe along the scalp is different: that is the hair's
+  scalp material, and removing the hair removes it.
+
+- **Some hair packages filter their tree per atom, and the same style usually exists twice.**
+  `kemenate.Male_Hairstyles.6:/.../MMid 02 a.vam` returns `no such option` on a female atom; the
+  identical style is shipped as
+  `kemenate.Female_Hairstyles.3:/Custom/Hair/Female/kemenate/Medium 02/MMid 02 a.vam` (plus
+  `MMid 02 TopLayer a.vam`) and loads there. When a hair path is refused, look for the female or
+  male twin inside the same creator's other package before concluding it is missing.
+
+- **DecalMaker is gender-agnostic and works on a male atom.** Its makeup layers render on a male
+  `Person` exactly as on a female one, and `VAM_Decal_Maker_2.Core` appears in `list_plugins` the
+  same way. What is *not* transferable is the plugin order: the user's standing requirement is
+  **AltFuta first, DecalMaker second**, and a plugin already added cannot be reordered from MCP -
+  `add_plugin` always appends, so the only fix is removing the later one in the VAM UI and adding it
+  again.
+
+- **`load_character` resets morphs and hair and clothing to the preset's values, so nothing shaped
+  by hand survives it.** Body, chest and face morphs must be set **after** the last
+  `load_character`/`load_look` of the task; `Flat Chested` was read back at 0 more than once after a
+  reload that came after it was set. A skin preset loaded with `load_look` carries hair and clothing
+  too, so any `clothing:`/`hair:` clearing has to be repeated after every look load as well.
+
 ## Downloading from the Hub
 
 `search_hub` drives VAM's own Hub browser: VAM does the networking with the

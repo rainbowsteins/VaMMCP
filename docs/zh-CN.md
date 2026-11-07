@@ -6,7 +6,7 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 本项目与 Mesh VR、Virt-A-Mate 或 vamX 没有隶属、背书或官方支持关系。你需要合法拥有并使用相关软件和内容。详见 [NOTICE.md](../NOTICE.md?plain=1)。
 
-**本项目不能生成素材。** 它搜索并加载硬盘上已有的文件，并且可以把已安装的 morph、发型和服装**组合**成一个原创角色，保存到本地角色库。它不会创造你没有的 morph、贴图或发型网格，也不会自动下载 Hub 内容。
+**本项目不能生成素材。** 它搜索并加载硬盘上已有的文件，并且可以把已安装的 morph、发型和服装**组合**成一个原创角色，保存到本地角色库。它不会创造你没有的 morph、贴图或发型网格。它可以搜索并下载 Hub 资源，但只通过 VAM 自带的 Hub 浏览器，并且必须先由你确认包列表（见下方“从 Hub 下载资源”）。
 
 当前版本：Session 插件 `VamMcpBridge` 0.8.0，Python 包 `vam-mcp` 0.6.0。
 
@@ -158,7 +158,8 @@ VAM_ROOT = 'VAM_ROOT'
 | 工具 | 用途 |
 | --- | --- |
 | `status` | 检查 `VAM_ROOT` 和桥接插件是否正常 |
-| `list_scenes` / `load_scene` | 搜索或加载场景 |
+| `list_scenes` / `load_scene` | 搜索或加载场景（`merge=true` 合并进当前场景）|
+| `save_scene` | 保存当前场景，不弹覆盖确认（不写预览 `.jpg`；文件约 45 秒内才落盘）|
 | `list_persons` | 查看当前场景中的 Person |
 | `add_person` / `remove_person` / `set_person_on` | 添加、删除、显示或隐藏人物 |
 | `capture_view` | 保存当前画面预览（整个 VAM 窗口，含 UI）|
@@ -171,8 +172,13 @@ VAM_ROOT = 'VAM_ROOT'
 | `setup_couple` | 一次设置两个人物外观和成对姿势 |
 | `list_morphs` / `set_morphs` | 搜索并设置任意 morph |
 | `list_geometry_options` / `set_geometry_options` | 发型 / 服装开关 |
-| `save_character` / `list_characters` / `load_character` | 本地角色库 |
+| `save_character` / `list_characters` / `load_character` | 本地角色库（名称只能用 ASCII）|
 | `list_plugins` / `add_plugin` | 查看人物身上的插件 / 装载缺失的插件 |
+| `list_actions` / `call_action` | 查找并按下 storable 的按钮，例如布料模拟的 `Reset`、DecalMaker 的 `Clear All Frames` |
+| `set_bool_param` | 通过真实 setter 设置布尔值并回读 |
+| `get_appearance` | 以原始 JSON 返回所有与外观相关的 storable |
+| `list_atoms` / `get_atom_params` / `set_atom_params` | 读写任意 atom，包括灯光和插件 storable |
+| `rescan_packages` | 下载后让 VAM 重新索引 `AddonPackages` |
 | `search_hub` | 用 VAM 内建的 Hub 浏览器搜索资源，按下载量排序 |
 | `download_resource` | 列出资源包含的包与体积；`confirm=true` 时才真正下载 |
 | `download_status` / `wait_for_downloads` | 查看下载队列 / 等待队列清空 |
@@ -212,13 +218,17 @@ VAM_ROOT = 'VAM_ROOT'
 | 重启后插件消失 | 执行 Set Current As User Defaults |
 | `VaM.exe not found` | `VAM_ROOT` 不是包含 `VaM.exe` 的文件夹 |
 | 包路径提示 `VamMcpBridge.cs does not exist` | 运行 `.\scripts\install-dev.ps1 -VamRoot "VAM_ROOT"`，然后选择 `Custom/Scripts/VamMcp/Bridge/VamMcpBridge.cs` |
-| 新增 Look 或 `.var` 后搜索不到 | 重启 MCP 服务，让目录缓存重新扫描 |
+| 新增 Look 或 `.var` 后搜索不到 | 重启 MCP 服务，让目录缓存重新扫描（只调用 `rescan_packages` 不够）|
 | `setup_couple` 姿势失败 | 使用 `list_poses` / `load_pose`，或确认所需成对姿势包已安装 |
 | 提示 `unknown op: move_person` | 插件版本过旧，更新本地 `.cs` 后在 Session Plugins 中 Reload（需要 0.6.0+）|
 
 ## 安全和限制
 
-- 本项目只处理本机文件，不会生成或下载角色、衣服、Look、姿势或场景。
+- 本项目只处理本机文件，不会生成角色、衣服、Look、姿势或场景。Hub 下载只通过 VAM 自带浏览器进行，且需先确认。
+- 外观预设无法加载插件。妆容或身体依赖插件（DecalMaker、AltFuta）的角色，在 `load_character` 后要 `list_plugins` / `add_plugin`；在初始化时绑定材质的插件，需要保存场景、重启 VAM、再加载场景才会渲染。
+- `load_character` / `load_look` 会把 morph、发型、服装重置为预设值，手动设置的 morph 必须放在最后一次加载之后。
+- `add_person` 创建的是男性 atom；把一个女性底子的角色加载上去会把它转换为女性身体。
+- 部分设置只能在 VAM UI 中修改，任何工具都碰不到：天空盒/灯光字符串，以及 **User Preferences → Performance 2 → Mirrored Surfaces Enabled**（不开启时镜子什么都不渲染）。
 - MCP 服务可以控制当前运行的 VAM 会话，并加载 `VAM_ROOT` 下可见的场景和预设。
 - 不要将该 MCP 服务交给不可信的 Agent，也不要将它暴露到网络。
 - 新增 `.var` 或 Look 文件后，必须重启 MCP 进程，目录缓存才会更新。

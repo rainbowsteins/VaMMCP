@@ -8,14 +8,14 @@ VamMCP is an unofficial [Model Context Protocol](https://modelcontextprotocol.io
 
 This project is **not affiliated with Mesh VR, Virt-A-Mate, or vamX**. You must own legal copies of the software and content you use. See [NOTICE.md](NOTICE.md?plain=1).
 
-**It does not generate assets.** It searches and loads files already on disk, and it can *combine* installed morphs, hair and clothing into an original character that it saves to a local library. It never creates a morph, texture or hair mesh you do not already own, and it never downloads from the Hub.
+**It does not generate assets.** It searches and loads files already on disk, and it can *combine* installed morphs, hair and clothing into an original character that it saves to a local library. It never creates a morph, texture or hair mesh you do not already own. It can search and download from the Hub, but only through VAM's own Hub browser and only after you confirm the package list (see [Downloading from the Hub](#downloading-from-the-hub)).
 
 Current pieces:
 
 | Piece | Version |
 | --- | --- |
-| Session plugin `VamMcpBridge` | 0.9.0 |
-| Python package `vam-mcp` | 0.9.0 |
+| Session plugin `VamMcpBridge` | 0.11.0 |
+| Python package `vam-mcp` | 0.11.0 |
 
 ## How it works
 
@@ -263,6 +263,7 @@ rather than guessing them.
 | --- | --- |
 | `status` | Is `VAM_ROOT` valid and is the plugin alive? |
 | `list_scenes` / `load_scene` | Search and load a scene (`merge=true` adds into the current scene) |
+| `save_scene` | Save the current scene without VAM's overwrite prompt (no preview `.jpg`; the write lands up to ~45 s later) |
 | `list_persons` | Person atoms in the current scene |
 | `add_person` / `remove_person` / `set_person_on` | Add, delete, or show/hide a Person |
 | `capture_view` | Save the VAM window to `Saves/PluginData/vam-mcp/preview.png` |
@@ -275,7 +276,13 @@ rather than guessing them.
 | `setup_couple` | One-shot: resolve two looks, enable or add people, apply a paired pose |
 | `list_morphs` / `set_morphs` | Search the morphs on a Person and set any of them |
 | `list_geometry_options` / `set_geometry_options` | Hair and clothing toggles (`hair:` / `clothing:`) |
-| `save_character` / `list_characters` / `load_character` | The local character library |
+| `save_character` / `list_characters` / `load_character` | The local character library (ASCII names only) |
+| `list_plugins` / `add_plugin` | What plugins a Person carries, and load a missing one (DecalMaker, AltFuta, …) |
+| `list_actions` / `call_action` | Find and press a storable's buttons — a cloth sim's `Reset`, DecalMaker's `Clear All Frames` |
+| `set_bool_param` | Set a bool through its real setter and read it back |
+| `get_appearance` | Every appearance-like storable as raw JSON |
+| `list_atoms` / `get_atom_params` / `set_atom_params` | Read and write any atom, lights and plugin storables included |
+| `rescan_packages` | Make VAM re-index `AddonPackages` after a download |
 | `search_hub` | Search the VAM Hub through VAM's built-in browser, ranked by download count |
 | `download_resource` | List a resource's packages with sizes, and with `confirm=true` download them |
 | `download_status` / `wait_for_downloads` | Hub download queue state, and block until it drains |
@@ -295,7 +302,7 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 
 ## Known limits
 
-- Scene catalog is cached for the life of the MCP process. After you drop new `.var` files or looks into VAM, restart the MCP server so `list_*` sees them.
+- Scene catalog is cached for the life of the MCP process. After you drop new `.var` files or looks into VAM, restart the MCP server so `list_*` sees them. `rescan_packages` alone is not enough.
 - `setup_couple` paired-pose paths currently assume **vamX 1.52**. A different package version will fail those `load_pose` calls unless that exact package is still installed.
 - `set_expression` only drives morphs that are already on the Person. Missing morphs show up in `missing`; the face will not change.
 - `lock_head` holds head/neck controllers and sets eyes to Target. A glance / look-at plugin on the Person can still turn the head — disable that plugin or lock again after it loads.
@@ -308,6 +315,10 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - `move_person` moves the **root control** only. If the Person's limb controllers are pinned by a pose, the body follows the root but a pose anchored to furniture can end up floating; re-apply the pose after a large move.
 - `add_person` starts a VAM coroutine and returns immediately. `setup_couple` waits about two seconds; a slow machine may need a retry.
 - `list_*` / `load_*` never create Hub content. If the look is not on disk, the answer is "not found".
+- An appearance preset cannot load a plugin. A character whose makeup or anatomy lives in a plugin (DecalMaker, AltFuta) needs `list_plugins` / `add_plugin` after `load_character`, and a plugin that binds its material at init only renders after you save the scene, restart VAM and load it again.
+- `load_character` / `load_look` reset morphs, hair and clothing to the preset, so hand-set morphs must go on after the last load.
+- `add_person` creates a male atom. Load a female-based character onto it to convert it to a female body.
+- Some settings are VAM-UI-only and no tool can reach them: the skybox and lighting strings, and **User Preferences → Performance 2 → Mirrored Surfaces Enabled** (mirrors render nothing until it is on).
 
 ## Troubleshooting
 
