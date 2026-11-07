@@ -50,6 +50,10 @@ BrowserProfile/
 *.vamcachemeta
 *.vamcachejson
 
+# Agent scratch folders (preview sheets, extracted textures, helper scripts)
+_tmp/
+_tmp_*/
+
 # Logs / screenshots
 logs/
 *.log

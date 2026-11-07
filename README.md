@@ -318,7 +318,8 @@ Do not ask the user to click **On** or delete atoms by hand — `set_person_on` 
 - An appearance preset cannot load a plugin. A character whose makeup or anatomy lives in a plugin (DecalMaker, AltFuta) needs `list_plugins` / `add_plugin` after `load_character`, and a plugin that binds its material at init only renders after you save the scene, restart VAM and load it again.
 - `load_character` / `load_look` reset morphs, hair and clothing to the preset, so hand-set morphs must go on after the last load.
 - `add_person` creates a male atom. Load a female-based character onto it to convert it to a female body.
-- Some settings are VAM-UI-only and no tool can reach them: the skybox and lighting strings, and **User Preferences → Performance 2 → Mirrored Surfaces Enabled** (mirrors render nothing until it is on).
+- `set_atom_params` writes float, bool, colour and plain string params on any atom, but not string-chooser params; those come back in `failed`.
+- **User Preferences → Performance 2 → Mirrored Surfaces Enabled** is VAM-UI-only. Mirrors render nothing until it is on.
 
 ## Troubleshooting
 

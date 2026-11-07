@@ -8,7 +8,7 @@ VamMCP 是一个面向 **Virt-A-Mate + vamX** 的非官方 [Model Context Protoc
 
 **本项目不能生成素材。** 它搜索并加载硬盘上已有的文件，并且可以把已安装的 morph、发型和服装**组合**成一个原创角色，保存到本地角色库。它不会创造你没有的 morph、贴图或发型网格。它可以搜索并下载 Hub 资源，但只通过 VAM 自带的 Hub 浏览器，并且必须先由你确认包列表（见下方“从 Hub 下载资源”）。
 
-当前版本：Session 插件 `VamMcpBridge` 0.8.0，Python 包 `vam-mcp` 0.6.0。
+当前版本：Session 插件 `VamMcpBridge` 0.11.0，Python 包 `vam-mcp` 0.11.0。
 
 ## 工作原理
 
@@ -228,7 +228,8 @@ VAM_ROOT = 'VAM_ROOT'
 - 外观预设无法加载插件。妆容或身体依赖插件（DecalMaker、AltFuta）的角色，在 `load_character` 后要 `list_plugins` / `add_plugin`；在初始化时绑定材质的插件，需要保存场景、重启 VAM、再加载场景才会渲染。
 - `load_character` / `load_look` 会把 morph、发型、服装重置为预设值，手动设置的 morph 必须放在最后一次加载之后。
 - `add_person` 创建的是男性 atom；把一个女性底子的角色加载上去会把它转换为女性身体。
-- 部分设置只能在 VAM UI 中修改，任何工具都碰不到：天空盒/灯光字符串，以及 **User Preferences → Performance 2 → Mirrored Surfaces Enabled**（不开启时镜子什么都不渲染）。
+- `set_atom_params` 可在任意 atom 上写 float、bool、颜色和普通字符串参数，但不支持下拉选择（string chooser）参数，这类参数会出现在返回值的 `failed` 中。
+- **User Preferences → Performance 2 → Mirrored Surfaces Enabled** 只能在 VAM UI 中开启，不开启时镜子什么都不渲染。
 - MCP 服务可以控制当前运行的 VAM 会话，并加载 `VAM_ROOT` 下可见的场景和预设。
 - 不要将该 MCP 服务交给不可信的 Agent，也不要将它暴露到网络。
 - 新增 `.var` 或 Look 文件后，必须重启 MCP 进程，目录缓存才会更新。
